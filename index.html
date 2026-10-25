@@ -1,0 +1,1669 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}</style>
+<title>Quai Libre</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Trouve les trajets gratuits TGV MAX (MAX JEUNE, MAX SENIOR) entre deux gares, correspondances comprises, sur les 30 prochains jours. Données SNCF Open Data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Doto:wght@700..900&display=swap">
+<style>
+/* Layout : bandeau « tableau des départs » (formulaire) puis billets à gauche, calendrier + carte à droite. */
+:root {
+  --bg: #EDF1F5;
+  --surface: #FFFFFF;
+  --surface-2: #F4F7FA;
+  --ink: #0C1A2B;
+  --ink-2: #4A5A6F;
+  --ink-3: #74839A;
+  --line: #D3DBE5;
+  --board: #0B2240;
+  --board-2: #15335B;
+  --board-ink: #DCE5F1;
+  --led: #FFC43A;
+  --led-glow: rgba(255, 196, 58, .32);
+  --live: #3CD07F;
+  --alert: #FF7A66;
+  --link: #1C4E97;
+  --ok: #10804A;
+  --ok-bg: #E1F3E8;
+  --via: #A85F07;
+  --via-bg: #FCEED6;
+  --map-land: #E2E9F1;
+  --map-edge: #C2CEDB;
+  --map-dot: #A6B4C5;
+  --shadow: 0 1px 2px rgba(12, 26, 43, .06), 0 6px 18px rgba(12, 26, 43, .07);
+  --f-ui: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-led: "Doto", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #07101C; --surface: #0E1A2A; --surface-2: #13223A; --ink: #E6ECF4; --ink-2: #A0B0C5; --ink-3: #7487A0;
+    --line: #22344D; --board: #040B16; --board-2: #10223D; --board-ink: #C9D5E4; --led: #FFC43A; --led-glow: rgba(255, 196, 58, .28);
+    --live: #3CD07F; --alert: #FF7A66; --link: #8DB6FF; --ok: #48CB89; --ok-bg: #0F2B1E; --via: #F2A645; --via-bg: #2D200E;
+    --map-land: #14243B; --map-edge: #253B5C; --map-dot: #3D5373; --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #07101C; --surface: #0E1A2A; --surface-2: #13223A; --ink: #E6ECF4; --ink-2: #A0B0C5; --ink-3: #7487A0;
+  --line: #22344D; --board: #040B16; --board-2: #10223D; --board-ink: #C9D5E4; --led: #FFC43A; --led-glow: rgba(255, 196, 58, .28);
+  --live: #3CD07F; --alert: #FF7A66; --link: #8DB6FF; --ok: #48CB89; --ok-bg: #0F2B1E; --via: #F2A645; --via-bg: #2D200E;
+  --map-land: #14243B; --map-edge: #253B5C; --map-dot: #3D5373; --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 15px; line-height: 1.45; }
+a { color: var(--link); text-underline-offset: 2px; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.wrap { max-width: 1200px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Bandeau ---------- */
+.board { background: var(--board); color: var(--board-ink); position: relative; }
+.board::before { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1.3px); background-size: 7px 7px; }
+.board-in { position: relative; padding-block: 22px 24px; display: grid; gap: 16px; }
+.board-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px; }
+.brand { display: grid; gap: 6px; }
+.led-title { margin: 0; font-family: var(--f-led); font-weight: 900; font-size: clamp(2.1rem, 6vw, 3.3rem); line-height: .9; letter-spacing: .05em; color: var(--led); text-shadow: 0 0 22px var(--led-glow); }
+.tagline { margin: 0; max-width: 52ch; font-size: .95rem; opacity: .88; text-wrap: balance; }
+.status { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; font-size: .8rem; line-height: 1.3; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); }
+.status .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.status[data-state="ready"] .dot { background: var(--live); box-shadow: 0 0 0 3px rgba(60, 208, 127, .22); }
+.status[data-state="loading"] .dot { background: var(--led); animation: blink 1s steps(2, start) infinite; }
+.status[data-state="error"] .dot { background: var(--alert); }
+.status .linkbtn { color: var(--led); padding: 0 0 0 4px; font-size: inherit; font-weight: 700; }
+@keyframes blink { to { opacity: .2; } }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { appearance: none; border: 1px solid rgba(255, 255, 255, .14); background: transparent; color: var(--board-ink); font-weight: 650; font-size: .95rem; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+.tab:hover { background: rgba(255, 255, 255, .07); }
+.tab[aria-selected="true"] { background: var(--led); border-color: var(--led); color: #0B2240; }
+
+.panel { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); display: grid; gap: 12px 14px; grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.25fr) auto; align-items: end; }
+.f-od { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: end; }
+.f-od.single { grid-template-columns: minmax(0, 1fr); }
+.f-when { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
+.field { min-width: 0; }
+.field > label, .opt > .lbl { display: block; font-size: .7rem; font-weight: 750; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-2); margin: 0 0 5px 2px; }
+.ctl { width: 100%; min-height: 46px; padding: 10px 12px; font-size: 1rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.ctl:focus-visible { outline: 2px solid var(--link); outline-offset: 0; border-color: transparent; }
+select.ctl { cursor: pointer; }
+.swap { align-self: end; width: 40px; height: 46px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; cursor: pointer; color: var(--ink-2); }
+.swap:hover { color: var(--ink); border-color: var(--ink-3); }
+.swap svg { width: 18px; height: 18px; transform: rotate(90deg); }
+.go { min-height: 46px; padding: 0 24px; border: 0; border-radius: 10px; background: var(--led); color: #0B2240; font-weight: 800; font-size: 1rem; cursor: pointer; white-space: nowrap; }
+.go:hover { filter: brightness(1.04); }
+.go:disabled { opacity: .55; cursor: progress; }
+
+.combo { position: relative; }
+.lb { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); max-height: 320px; overflow-y: auto; }
+.lb li { padding: 9px 10px; border-radius: 8px; cursor: pointer; display: grid; gap: 1px; }
+.lb li[aria-selected="true"], .lb li:hover { background: var(--surface-2); }
+.lb .o-name { font-weight: 650; }
+.lb .o-sub { font-size: .78rem; color: var(--ink-2); }
+.lb .o-empty { color: var(--ink-2); cursor: default; }
+
+.opts { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 10px; }
+.opts > summary { cursor: pointer; font-weight: 650; color: var(--ink-2); font-size: .9rem; max-width: 100%; list-style: none; display: block; }
+.opts > summary::-webkit-details-marker { display: none; }
+.opts > summary::before { content: ""; display: inline-block; vertical-align: .12em; margin-right: 8px; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s; }
+.opts[open] > summary::before { transform: rotate(45deg); }
+.opts .sumv { font-weight: 500; color: var(--ink-3); }
+.opt-grid { display: flex; flex-wrap: wrap; gap: 14px 22px; padding-top: 12px; }
+.opt { min-width: 0; }
+.opt .ctl { min-height: 40px; padding: 7px 10px; font-size: .95rem; width: auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; min-width: 42px; padding: 9px 12px; text-align: center; font-weight: 650; font-variant-numeric: tabular-nums; }
+.seg label + label span { border-left: 1px solid var(--line); }
+.seg input:checked + span { background: var(--board); color: var(--led); }
+.seg input:focus-visible + span { outline: 2px solid var(--link); outline-offset: -2px; }
+.check { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 600; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--link); }
+.ret-row { display: inline-flex; gap: 6px; align-items: center; }
+.linkbtn { appearance: none; border: 0; background: none; color: var(--link); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; padding: 4px; font-size: .88rem; }
+
+/* ---------- Corps ---------- */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; padding-block: 24px 36px; align-items: start; }
+.side { display: grid; gap: 16px; position: sticky; top: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.card-h { display: grid; gap: 2px; margin: 0 0 12px; }
+.card-h h2 { margin: 0; font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-2); }
+.card-h .sub { font-size: .84rem; color: var(--ink); font-weight: 600; min-height: 1.2em; }
+.main.explore { grid-template-columns: minmax(0, 1fr) minmax(0, 470px); }
+.results { min-width: 0; display: grid; gap: 14px; }
+.res-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.res-head h2 { margin: 0; font-size: clamp(1.15rem, 2.4vw, 1.45rem); line-height: 1.2; font-stretch: 92%; text-wrap: balance; }
+.res-head .meta { margin: 4px 0 0; color: var(--ink-2); font-size: .92rem; }
+.pills { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; }
+.pills button { appearance: none; border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: .84rem; font-weight: 650; color: var(--ink-2); cursor: pointer; }
+.pills button[aria-pressed="true"] { background: var(--board); color: var(--led); }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; font-weight: 700; line-height: 1.2; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); white-space: nowrap; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.chip.via { background: var(--via-bg); color: var(--via); border-color: transparent; }
+.chip.star { background: var(--board); color: var(--led); border-color: transparent; }
+
+/* Billets */
+.tickets { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ticket { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; position: relative; }
+.ticket.is-open { border-color: var(--ink-3); box-shadow: var(--shadow); }
+.t-sum { appearance: none; border: 0; background: none; text-align: left; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "dep track arr" "dst . ast" "chips chips chips"; gap: 2px 14px; padding: 14px 16px; cursor: pointer; border-radius: 14px; }
+.t-sum:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+.t-dep { grid-area: dep; } .t-arr { grid-area: arr; text-align: right; }
+.t-time { font-family: var(--f-led); font-weight: 800; font-size: 1.75rem; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.t-time sup { font-family: var(--f-ui); font-size: .7rem; font-weight: 700; color: var(--via); margin-left: 2px; vertical-align: super; }
+.t-st { font-size: .84rem; color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.t-dst { grid-area: dst; } .t-ast { grid-area: ast; text-align: right; }
+.t-mid { grid-area: track; align-self: center; display: grid; gap: 5px; min-width: 0; text-align: center; }
+.t-track { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.t-track::before, .t-track::after { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+.t-track i { flex: 1; height: 2px; min-width: 8px; background: var(--ink-3); border-radius: 2px; }
+.t-track b { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--via); background: var(--surface); }
+.t-track b.same { border-style: dashed; border-color: var(--ink-3); }
+.t-dur { font-size: .8rem; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; line-height: 1; }
+.t-chips { grid-area: chips; display: flex; flex-wrap: wrap; gap: 5px; padding-top: 10px; }
+.t-detail { border-top: 2px dashed var(--line); position: relative; }
+.t-detail::before, .t-detail::after { content: ""; position: absolute; top: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); }
+.t-detail::before { left: -10px; clip-path: inset(0 0 0 50%); }
+.t-detail::after { right: -10px; clip-path: inset(0 50% 0 0); }
+.ticket.is-open .t-detail::before, .ticket.is-open .t-detail::after { border-color: var(--ink-3); }
+
+.tl { list-style: none; margin: 0; padding: 14px 16px 6px; display: grid; }
+.tl li { display: grid; grid-template-columns: 3.3rem 16px minmax(0, 1fr); gap: 0 10px; }
+.tl-t { font-weight: 750; font-variant-numeric: tabular-nums; }
+.tl-t sup { font-size: .68rem; color: var(--via); }
+.tl-dot { justify-self: center; margin-top: 4px; width: 13px; height: 13px; border-radius: 50%; border: 3px solid var(--ink); background: var(--surface); }
+.tl-name { font-weight: 650; min-width: 0; }
+.tl-bar { justify-self: center; width: 3px; background: var(--ink); border-radius: 2px; min-height: 36px; margin-block: 2px; }
+.tl-dash { justify-self: center; width: 0; min-height: 34px; border-left: 3px dotted var(--via); margin-block: 2px; }
+.tl-info { align-self: center; font-size: .86rem; color: var(--ink-2); padding-block: 8px; }
+.tl-info b { color: var(--ink); font-weight: 700; }
+.tl-note { align-self: center; font-size: .84rem; padding: 6px 10px; margin-block: 6px; border-radius: 8px; background: var(--surface-2); color: var(--ink-2); }
+.tl-note.warn { background: var(--via-bg); color: var(--via); font-weight: 600; }
+.t-foot { padding: 4px 16px 14px; display: grid; gap: 10px; }
+.t-advice { margin: 0; font-size: .82rem; color: var(--ink-2); }
+.t-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 650; font-size: .9rem; cursor: pointer; text-decoration: none; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--board); border-color: var(--board); color: var(--led); }
+.btn svg { width: 15px; height: 15px; }
+.copybox { width: 100%; min-height: 90px; font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
+
+/* Destinations */
+.dests { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dest { appearance: none; width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.dest:hover, .dest.hl { border-color: var(--ink-3); box-shadow: var(--shadow); }
+.d-name { font-weight: 750; font-size: 1.02rem; min-width: 0; overflow-wrap: anywhere; }
+.d-info { grid-column: 1; color: var(--ink-2); font-size: .86rem; min-width: 0; }
+.d-right { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; display: grid; gap: 3px; justify-items: end; }
+.d-big { font-family: var(--f-led); font-weight: 800; font-size: 1.25rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.d-small { font-size: .74rem; color: var(--ink-3); }
+.more { justify-self: center; }
+
+/* Calendrier */
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-dow { font-size: .68rem; font-weight: 800; text-align: center; color: var(--ink-3); padding-bottom: 2px; }
+.cal-day { appearance: none; min-width: 0; min-height: 46px; padding: 4px 1px; border-radius: 9px; border: 1px solid transparent; background: var(--surface-2); color: var(--ink); display: grid; align-content: center; justify-items: center; gap: 1px; cursor: pointer; }
+.cal-day .n { font-weight: 750; font-size: .88rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cal-day .m { font-size: .6rem; font-weight: 700; text-transform: uppercase; color: var(--ink-3); line-height: 1; }
+.cal-day .c { font-size: .66rem; font-weight: 700; color: var(--ink-3); min-height: 1.1em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cal-day[data-s="direct"] { background: var(--ok-bg); } .cal-day[data-s="direct"] .c { color: var(--ok); }
+.cal-day[data-s="via"] { background: var(--via-bg); } .cal-day[data-s="via"] .c { color: var(--via); }
+.cal-day[data-s="none"] { background: transparent; border-color: var(--line); color: var(--ink-3); }
+.cal-day[data-s="wait"] .c::after { content: "·"; animation: blink 1s steps(2, start) infinite; }
+.cal-day.today .n { text-decoration: underline 2px var(--led); text-underline-offset: 3px; }
+.cal-day[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.cal-day:disabled { background: transparent; opacity: .35; cursor: default; }
+.cal-day.blank { visibility: hidden; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .76rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+/* Carte */
+.map svg { display: block; width: 100%; height: auto; }
+.m-land { fill: var(--map-land); stroke: var(--map-edge); stroke-width: 1.2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.m-dot { fill: var(--map-dot); }
+.m-route { fill: none; stroke: var(--ink); stroke-width: 3.5px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.m-route.same { stroke-dasharray: 2 6; }
+.m-stop { fill: var(--surface); stroke: var(--ink); stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.m-xfer { fill: var(--led); stroke: var(--ink); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.m-origin { fill: var(--led); stroke: var(--ink); stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.m-ray { stroke: var(--ok); stroke-opacity: .3; stroke-width: 1.2px; vector-effect: non-scaling-stroke; }
+.m-direct { fill: var(--ok); stroke: var(--surface); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.m-via { fill: var(--surface); stroke: var(--via); stroke-width: 2.2px; vector-effect: non-scaling-stroke; }
+.m-hit { cursor: pointer; }
+.m-hit:hover circle, .m-hit.hl circle { stroke: var(--ink); stroke-width: 3px; }
+.m-label { fill: var(--ink); font-family: var(--f-ui); font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: .76rem; color: var(--ink-2); }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+/* États */
+.empty, .import { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 12px; }
+.empty h3, .import h2 { margin: 0; font-size: 1.15rem; text-wrap: balance; }
+.empty p, .import p { margin: 0; color: var(--ink-2); max-width: 65ch; }
+.import ol { margin: 0; padding-left: 1.3em; display: grid; gap: 10px; }
+.import li::marker { font-weight: 800; color: var(--ink); }
+.drop { border: 2px dashed var(--line); border-radius: 12px; padding: 22px 16px; text-align: center; color: var(--ink-2); font-weight: 600; display: grid; gap: 10px; justify-items: center; }
+.drop.over, body.dragging .drop { border-color: var(--link); background: var(--surface-2); color: var(--ink); }
+.filebtn { position: relative; overflow: hidden; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.err { color: var(--alert); font-weight: 650; }
+.skel { display: grid; gap: 10px; }
+.skel div { height: 96px; border-radius: 14px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border: 1px solid var(--line); }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.note { font-size: .84rem; color: var(--ink-2); }
+.suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Pied de page */
+.foot { padding-block: 8px 40px; color: var(--ink-2); font-size: .9rem; }
+.foot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px 32px; border-top: 1px solid var(--line); padding-top: 22px; }
+.foot h2 { margin: 0 0 8px; font-size: .74rem; text-transform: uppercase; letter-spacing: .09em; color: var(--ink); }
+.foot ol, .foot ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 62ch; }
+.foot .small { margin: 20px 0 0; font-size: .8rem; color: var(--ink-3); max-width: 90ch; }
+
+@media (max-width: 960px) {
+  .panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .f-od { grid-column: 1 / -1; }
+  .go { grid-column: 1 / -1; }
+  .f-when { grid-column: 1 / -1; }
+  .main, .main.explore { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+}
+@media (max-width: 560px) {
+  .board-in { padding-block: 16px 18px; gap: 12px; }
+  .panel { padding: 12px; border-radius: 14px; }
+  .f-od { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "a s" "b s"; }
+  .f-od.single { grid-template-areas: "a"; grid-template-columns: minmax(0, 1fr); }
+  #f-from { grid-area: a; } #f-to { grid-area: b; }
+  .f-od.single #f-to { grid-area: a; }
+  .swap { grid-area: s; align-self: center; height: 40px; margin-top: 18px; }
+  .t-time { font-size: 1.45rem; }
+  .t-sum { padding: 12px 13px; gap: 2px 10px; }
+  .tl { padding-inline: 12px; }
+  .tl li { grid-template-columns: 3rem 14px minmax(0, 1fr); gap: 0 8px; }
+  .status { font-size: .74rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<header class="board">
+  <div class="wrap board-in">
+    <div class="board-top">
+      <div class="brand">
+        <h1 class="led-title">QUAI LIBRE</h1>
+        <p class="tagline">Les trajets à 0 € avec ton abonnement MAX JEUNE ou MAX SENIOR, en direct ou avec correspondances, sur les 30 prochains jours.</p>
+      </div>
+      <div class="status" id="status" data-state="loading"><span class="dot" aria-hidden="true"></span><span id="statusText" role="status">Chargement des places MAX…</span><button type="button" class="linkbtn" id="reimport" hidden>Mettre à jour</button></div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Type de recherche">
+      <button class="tab" role="tab" id="tab-trip" data-mode="trip" aria-selected="true" aria-controls="results">Itinéraire</button>
+      <button class="tab" role="tab" id="tab-from" data-mode="from" aria-selected="false" aria-controls="results" tabindex="-1">Où aller ?</button>
+      <button class="tab" role="tab" id="tab-to" data-mode="to" aria-selected="false" aria-controls="results" tabindex="-1">D’où partir ?</button>
+    </div>
+
+    <form class="panel" id="form" autocomplete="off" novalidate>
+      <div class="f-od" id="fod">
+        <div class="field" id="f-from">
+          <label for="in-from">Départ</label>
+          <div class="combo">
+            <input class="ctl" id="in-from" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lb-from" placeholder="Ville ou gare" spellcheck="false" autocapitalize="off">
+            <ul class="lb" id="lb-from" role="listbox" aria-label="Gares de départ" hidden></ul>
+          </div>
+        </div>
+        <button class="swap" id="swap" type="button" aria-label="Inverser départ et arrivée" title="Inverser">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M7 4 3.5 7.5M7 4l3.5 3.5M17 20V4m0 16-3.5-3.5M17 20l3.5-3.5"/></svg>
+        </button>
+        <div class="field" id="f-to">
+          <label for="in-to">Arrivée</label>
+          <div class="combo">
+            <input class="ctl" id="in-to" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lb-to" placeholder="Ville ou gare" spellcheck="false" autocapitalize="off">
+            <ul class="lb" id="lb-to" role="listbox" aria-label="Gares d’arrivée" hidden></ul>
+          </div>
+        </div>
+      </div>
+      <div class="f-when">
+        <div class="field"><label for="in-date">Date</label><input class="ctl" id="in-date" type="date" required></div>
+        <div class="field"><label for="in-after">Départ après</label><select class="ctl" id="in-after"></select></div>
+      </div>
+      <button class="go" id="go" type="submit">Chercher</button>
+
+      <details class="opts" id="opts">
+        <summary>Réglages <span class="sumv" id="optsSum"></span></summary>
+        <div class="opt-grid">
+          <div class="opt" id="o-changes">
+            <span class="lbl" id="lbl-changes">Correspondances max</span>
+            <div class="seg" role="radiogroup" aria-labelledby="lbl-changes">
+              <label><input type="radio" name="changes" id="ch-0" value="0"><span>0</span></label>
+              <label><input type="radio" name="changes" id="ch-1" value="1"><span>1</span></label>
+              <label><input type="radio" name="changes" id="ch-2" value="2"><span>2</span></label>
+              <label><input type="radio" name="changes" id="ch-3" value="3"><span>3</span></label>
+            </div>
+          </div>
+          <div class="opt" id="o-xchange">
+            <label class="check"><input type="checkbox" id="in-xchange"> Inclure 1 correspondance</label>
+          </div>
+          <div class="opt">
+            <label class="lbl" for="in-transfer">Correspondance mini</label>
+            <select class="ctl" id="in-transfer">
+              <option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option>
+            </select>
+          </div>
+          <div class="opt">
+            <label class="lbl" for="in-wait">Attente max</label>
+            <select class="ctl" id="in-wait">
+              <option value="60">1 h</option><option value="120">2 h</option><option value="180">3 h</option><option value="240">4 h</option><option value="360">6 h</option><option value="480">8 h</option>
+            </select>
+          </div>
+          <div class="opt">
+            <label class="lbl" for="in-radius">Gares proches</label>
+            <select class="ctl" id="in-radius">
+              <option value="0">Gare choisie seulement</option><option value="30">À moins de 30 km</option><option value="60">À moins de 60 km</option>
+            </select>
+          </div>
+          <div class="opt" id="o-ret">
+            <label class="lbl" for="in-ret">Retour (optionnel)</label>
+            <span class="ret-row"><input class="ctl" id="in-ret" type="date"><button type="button" class="linkbtn" id="ret-clear">Effacer</button></span>
+          </div>
+          <div class="opt" id="o-daytrip">
+            <label class="check"><input type="checkbox" id="in-daytrip"> Aller-retour dans la journée</label>
+          </div>
+        </div>
+      </details>
+    </form>
+  </div>
+</header>
+
+<main class="wrap main">
+  <section class="results" id="results" aria-live="polite" aria-busy="true">
+    <div class="skel" aria-hidden="true"><div></div><div></div><div></div></div>
+  </section>
+  <aside class="side" id="side">
+    <section class="card" id="calCard" aria-labelledby="calTitle">
+      <div class="card-h"><h2 id="calTitle">Calendrier des places</h2><span class="sub" id="calSub"></span></div>
+      <div id="cal"></div>
+      <div class="legend" id="calLegend"></div>
+    </section>
+    <section class="card" id="mapCard" aria-labelledby="mapTitle">
+      <div class="card-h"><h2 id="mapTitle">Carte</h2><span class="sub" id="mapSub"></span></div>
+      <div class="map" id="map"></div>
+      <div class="map-legend" id="mapLegend"></div>
+    </section>
+  </aside>
+</main>
+
+<footer class="wrap foot">
+  <div class="foot-grid">
+    <section>
+      <h2>Comment ça marche</h2>
+      <ol>
+        <li>Chaque matin, la SNCF publie la liste des trains MAX JEUNE et MAX SENIOR des 30 prochains jours, avec pour chaque trajet s’il reste des places.</li>
+        <li>Quai Libre assemble ces trajets gratuits pour relier ta gare de départ à ta destination : en direct, avec correspondances, ou en découpant un même train en plusieurs tronçons.</li>
+        <li>Tu réserves chaque tronçon sur SNCF Connect avec ton abonnement MAX.</li>
+      </ol>
+    </section>
+    <section>
+      <h2>À savoir</h2>
+      <ul>
+        <li>Les données datent du matin. Une place peut partir dans la journée : la réservation sur SNCF Connect fait foi.</li>
+        <li>Avec une correspondance, chaque train est une réservation à part. Si le premier a du retard, le suivant n’est pas garanti : garde de la marge.</li>
+        <li>« Reste à bord » signifie que le trajet complet n’a plus de place MAX, mais que deux tronçons du même train en ont. Tu peux devoir changer de place en route.</li>
+        <li>Les gares de Paris, Lyon et Lille sont regroupées par ville. Quand il faut changer de gare, Quai Libre compte le temps de traversée.</li>
+      </ul>
+    </section>
+  </div>
+  <p class="small">Outil indépendant, non affilié à SNCF Voyageurs. Données : <a href="https://ressources.data.sncf.com/explore/dataset/tgvmax/" target="_blank" rel="noopener">SNCF Open Data, jeu « tgvmax »</a> (licence ODbL). Coordonnées des gares : trainline-eu/stations (ODbL). Contour de la France : france-geojson.</p>
+</footer>
+
+<script>
+window.QL_STATIONS={"FRMLW":["Aéroport CDG 2 TGV",49.004,2.571,"AEROPORT ROISSY CDG 2 TGV",10247],"FRXAG":["Agde",43.317,3.466,"AGDE",1800],"FRAGF":["Agen",44.208,0.621,"AGEN",3405],"FRQAI":["Aime-la-Plagne",45.554,6.649,"AIME LA PLAGNE",6],"FRAIE":["Aix-en-Provence TGV",43.455,5.318,"AIX EN PROVENCE TGV",8932],"FRXAI":["Aix-les-Bains – Le Revard",45.688,5.909,"AIX LES BAINS LE REVARD",1221],"FRXAV":["Albertville",45.673,6.383,"ALBERTVILLE",6],"FRAMA":["Albi Madeleine",43.938,2.141,"ALBI MADELEINE",5],"FRAFJ":["Albi Ville",43.922,2.138,"ALBI VILLE",5],"FRQAM":["Amiens",49.891,2.313,"AMIENS",186],"FREFN":["Ancenis",47.369,-1.178,"ANCENIS",61],"FRACL":["Angers St-Laud",47.465,-0.557,"ANGERS SAINT LAUD",8843],"FRANG":["Angoulême",45.654,0.165,"ANGOULEME",2589],"FRNCY":["Annecy",45.902,6.122,"ANNECY",1130],"FRQNJ":["Annemasse",46.199,6.237,"ANNEMASSE",52],"FRXAT":["Antibes",43.586,7.119,"ANTIBES",3340],"FRXAC":["Arcachon",44.659,-1.165,"ARCACHON",261],"FRARM":["Argelès-sur-Mer",42.544,3.022,"ARGELES SUR MER",30],"FRFMT":["Argenton-sur-Creuse",46.592,1.518,"ARGENTON SUR CREUSE",2121],"FRHZA":["Arles",43.685,4.632,"ARLES",1883],"FRQRV":["Arras",50.287,2.782,"ARRAS",2410],"FRARV":["Arvant",45.365,3.311,"ARVANT",1356],"FRFSD":["Assier",44.675,1.87,"ASSIER",62],"FRFSQ":["Aubin",44.527,2.239,"AUBIN",62],"DEAGB":["Augsburg Hbf",48.365,10.886,"AUGSBURG HBF",288],"FRINC":["Aumont-Aubrac",44.718,3.284,"AUMONT AUBRAC",1356],"FRXUY":["Auray",47.68,-3.0,"AURAY",2370],"FRAUR":["Aurillac",44.921,2.436,"AURILLAC",57],"FRFPW":["Auterive",43.349,1.469,"AUTERIVE",28],"FRAES":["Avignon Centre",43.942,4.805,"AVIGNON CENTRE",808],"FRAVG":["Avignon TGV",43.922,4.786,"AVIGNON TGV",10194],"FRXLT":["Ax-les-Thermes",42.725,1.833,"AX LES THERMES",28],"DEZCC":["Baden-Baden",48.79,8.19,"BADEN BADEN",705],"FRINH":["Banassac – La Canourgue",44.448,3.196,"BANASSAC LA CANOURGUE",1356],"FRXBU":["Banyuls-sur-Mer",42.483,3.125,"BANYULS SUR MER",30],"FRXBD":["Bar-le-Duc",48.773,5.167,"BAR LE DUC",874],"ESBST":["Barcelona Sants",41.379,2.14,"BARCELONA SANTS",888],"CHAJP":["Basel SBB",47.547,7.589,"BASEL SBB",1036],"FRXBY":["Bayonne",43.497,-1.47,"BAYONNE",3188],"FRXBV":["Beaune",47.023,4.848,"BEAUNE",1624],"FRIMH":["Bédarieux",43.609,3.15,"BEDARIEUX",1360],"FRTJA":["Belfort – Montbéliard TGV",47.586,6.898,"BELFORT MONTBELIARD TGV",7040],"FRXBF":["Bellegarde-sur-Valserine",46.109,5.823,"BELLEGARDE SUR VALSERINE GARE",1680],"FRTJB":["Besançon-Franche-Comté TGV",47.307,5.953,"BESANCON FRANCHE COMTE TGV",6606],"FRABG":["Besançon Viotte",47.247,6.022,"BESANCON VIOTTE",590],"FRXBH":["Béthune",50.521,2.641,"BETHUNE",195],"FRBZR":["Béziers",43.336,3.219,"BEZIERS",8244],"FRBIQ":["Biarritz",43.459,-1.546,"BIARRITZ",2194],"FRFAC":["Facture – Biganos",44.637,-0.966,"BIGANOS FACTURE",421],"FRBOJ":["Bordeaux St-Jean",44.826,-0.557,"BORDEAUX ST JEAN",13103],"FRAEB":["Boulogne Ville",50.716,1.61,"BOULOGNE VILLE",272],"FRXBK":["Bourg-en-Bresse",46.2,5.215,"BOURG EN BRESSE",1512],"FRQBM":["Bourg-St-Maurice",45.619,6.771,"BOURG SAINT MAURICE",6],"FRBOU":["Bourges",47.094,2.394,"BOURGES",2002],"FRHLE":["Brassac-les-Mines – Ste-Florine",45.414,3.33,"BRASSAC LES MINES STE FLORINE",1356],"FRBES":["Brest",48.388,-4.479,"BREST",2663],"FRXBC":["Briançon",44.89,6.633,"BRIANCON",88],"FRBVE":["Brive-la-Gaillarde",45.153,1.529,"BRIVE LA GAILLARDE",4909],"BEBMI":["Bruxelles-Midi",50.835,4.336,"BRUXELLES MIDI",4599],"FRZAO":["Cahors",44.449,1.433,"CAHORS",2964],"FRSTH":["Calais Fréthun",50.903,1.811,"CALAIS FRETHUN",276],"FRAEA":["Calais Ville",50.953,1.848,"CALAIS VILLE",1],"FRINJ":["Campagnac – St-Geniez",44.422,3.066,"CAMPAGNAC ST GENIEZ",1356],"FRJCA":["Cannes",43.554,7.02,"CANNES",3344],"FRCDC":["Capdenac",44.578,2.078,"CAPDENAC",62],"FRCCF":["Carcassonne",43.218,2.352,"CARCASSONNE",5123],"FRFWA":["Carmaux",44.049,2.152,"CARMAUX",5],"FRFTA":["Caussade (Tarn-et-Garonne)",44.162,1.534,"CAUSSADE(TARN ET GARONNE)",2006],"FRIMC":["Ceilhes – Roqueredonde",43.812,3.155,"CEILHES ROQUEREDONDE",1356],"FRXCE":["Cerbère",42.442,3.163,"CERBERE",30],"FRXCD":["Chalon-sur-Saône",46.782,4.843,"CHALON SUR SAONE",2345],"FRXCR":["Châlons-en-Champagne",48.955,4.349,"CHALONS EN CHAMPAGNE",212],"FRCMF":["Chambéry Challes-les-Eaux",45.571,5.92,"CHAMBERY CHALLES LES EAUX",2364],"FREAH":["Champagne-Ardenne TGV",49.215,3.995,"CHAMPAGNE ARDENNE TGV",4283],"FRXCZ":["Charleville-Mézières",49.768,4.725,"CHARLEVILLE MEZIERES",476],"FRCHR":["Châteauroux",46.81,1.7,"CHATEAUROUX",4912],"FRXCX":["Châtellerault",46.819,0.549,"CHATELLERAULT",1289],"FRIGS":["Chorges",44.546,6.272,"CHORGES",62],"FRCFE":["Clermont-Ferrand",45.779,3.101,"CLERMONT FERRAND",3497],"FRXCU":["Collioure",42.527,3.078,"COLLIOURE",30],"FRAEJ":["Colmar",48.073,7.347,"COLMAR",3473],"FRBHA":["Commercy",48.766,5.589,"COMMERCY",1376],"FRKGD":["Commercy Zone du Seugnon",48.755,5.585,"COMMERCY ZONE DU SEUGNON",88],"FRFSR":["Cransac",44.523,2.272,"CRANSAC",62],"FRCRE":["Crest",44.73,5.016,"CREST",38],"FRCKH":["Croix – Wasquehal",50.679,3.138,"CROIX WASQUEHAL",48],"FRCCY":["Culmont-Chalindrey",47.81,5.443,"CULMONT CHALINDREY",764],"FRACG":["Dax",43.72,-1.05,"DAX",3161],"FRDIE":["Die",44.758,5.363,"DIE",38],"FRABA":["Dijon Ville",47.323,5.027,"DIJON VILLE",8516],"FRDOL":["Dol-de-Bretagne",48.544,-1.751,"DOL DE BRETAGNE",602],"FRACE":["Dole Ville",47.096,5.488,"DOLE VILLE",1280],"FRXDN":["Douai",50.372,3.09,"DOUAI",1088],"FRADI":["Dunkerque",51.03,2.369,"DUNKERQUE",299],"FRIOG":["Elne",42.597,2.964,"ELNE",30],"FRIGV":["Embrun",44.567,6.497,"EMBRUN",62],"FREPL":["Épinal",48.178,6.442,"EPINAL",362],"FRETA":["Étaples – Le Touquet",50.517,1.642,"ETAPLES   LE TOUQUET",99],"FRXEB":["Évian-les-Bains",46.398,6.577,"EVIAN LES BAINS",52],"FRFIG":["Figeac",44.604,2.037,"FIGEAC",133],"ESFIR":["Figueres – Vilafant",42.265,2.943,"FIGUERES VILAFANT",888],"FRXFX":["Foix",42.97,1.607,"FOIX",28],"FRBQT":["Forbach",49.189,6.901,"FORBACH",609],"DEFRH":["Frankfurt (Main) Hbf",50.107,8.664,"FRANKFURT AM MAIN HBF",2063],"FRFRA":["Frasne",46.858,6.158,"FRASNE",916],"DEFGB":["Freiburg (Breisgau) Hbf",47.998,7.842,"FREIBURG (BREISGAU) HBF",288],"FRSHZ":["Fresnes-au-Mont",48.887,5.432,"FRESNES AU MONT",1998],"FRTGO":["Futuroscope",46.67,0.377,"FUTUROSCOPE",647],"FRGAT":["Gap",44.564,6.086,"GAP",62],"CHGVA":["Genève Cornavin",46.209,6.145,"GENEVE CORNAVIN",1616],"ESGRO":["Girona",41.98,2.816,"GIRONA",888],"FRFSI":["Gourdon",44.742,1.389,"GOURDON",2962],"FRFSB":["Gramat",44.773,1.722,"GRAMAT",62],"FRGNB":["Grenoble",45.191,5.715,"GRENOBLE",802],"FRGGP":["Guingamp",48.556,-3.143,"GUINGAMP",2290],"FRHZK":["Hazebrouck",50.725,2.541,"HAZEBROUCK",195],"DEQHD":["Heidelberg Hbf",49.404,8.676,"HEIDELBERG HBF",10],"FRAEF":["Hendaye",43.353,-1.782,"HENDAYE",2194],"FRXHE":["Hyères",43.109,6.124,"HYERES",176],"FRHLB":["Issoire",45.544,3.254,"ISSOIRE",1356],"FRFMN":["Issoudun",46.949,1.986,"ISSOUDUN",1200],"FREMR":["Jonzac",45.439,-0.442,"JONZAC",1610],"DEKLT":["Kaiserslautern Hbf",49.436,7.769,"KAISERSLAUTERN HBF",1044],"DEQKA":["Karlsruhe Hbf",48.994,8.402,"KARLSRUHE HBF",2335],"FRIHC":["L’Argentière-les-Écrins",44.791,6.556,"L'ARGENTIERE LES ECRINS",62],"FRFQG":["L’Hospitalet-près-l’Andorre",42.589,1.8,"L'HOSPITALET PRES L'AND.",28],"FRJEE":["La Baule-Escoublac",47.289,-2.389,"LA BAULE ESCOUBLAC",1236],"FRXRO":["La Roche-sur-Yon",46.672,-1.436,"LA ROCHE SUR YON",2227],"FRLRH":["La Rochelle Ville",46.153,-1.145,"LA ROCHELLE VILLE",3425],"FRLST":["La Souterraine",46.24,1.492,"LA SOUTERRAINE",4553],"FRFCJ":["La Teste",44.637,-1.143,"LA TESTE",42],"DEANL":["Lahr (Schwarzw)",48.34,7.835,"LAHR SCHWARZW",200],"FRLAM":["Lamballe",48.466,-2.512,"LAMBALLE",1271],"FRXLD":["Landerneau",48.454,-4.257,"LANDERNEAU",510],"FRHPG":["Landry",45.574,6.734,"LANDRY",6],"FRLNZ":["Lannemezan",43.114,0.387,"LANNEMEZAN",405],"FRLAI":["Lannion",48.728,-3.46,"LANNION",51],"FRXTE":["Latour-de-Carol – Enveitg",42.459,1.905,"LATOUR DE CAROL ENVEITG",28],"CHAJF":["Lausanne",46.517,6.629,"LAUSANNE",831],"FRACR":["Laval",48.076,-0.761,"LAVAL",3504],"FRIMG":["Le Bousquet-d’Orb",43.691,3.169,"LE BOUSQUET D'ORB",1356],"FRXCC":["Le Creusot Montceau Montchanin TGV",46.765,4.5,"LE CREUSOT MONTCEAU MONTCHANIN",1459],"FREGU":["Le Croisic",47.29,-2.507,"LE CROISIC",1236],"FRAEZ":["Le Havre",49.493,0.126,"LE HAVRE",336],"FRAET":["Le Mans",47.995,0.19,"LE MANS",7362],"FRLMR":["Le Monastier",44.509,3.252,"LE MONASTIER",1356],"FREGS":["Le Pouliguen",47.283,-2.433,"LE POULIGUEN",234],"FRXLE":["Lens",50.427,2.828,"LENS",216],"FRPFJ":["Lérouville Centre",48.792,5.542,"LEROUVILLE CENTRE",1998],"FRXRS":["Les Arcs – Draguignan",43.456,6.482,"LES ARCS DRAGUIGNAN",2317],"FRLAB":["Les Aubrais (Orléans)",47.927,1.907,"LES AUBRAIS ORLEANS",2820],"FRFQK":["Les Cabannes",42.786,1.686,"LES CABANNES",28],"FRLSO":["Les Sables-d’Olonne",46.5,-1.781,"LES SABLES D'OLONNE",563],"FRXLR":["Libourne",44.916,-0.236,"LIBOURNE",637],"FRADJ":["Lille-Flandres",50.637,3.07,"LILLE (intramuros)",2038],"FRLLE":["Lille-Europe",50.639,3.076,"LILLE (intramuros)",7541],"FRAGQ":["Limoges Bénédictins",45.836,1.267,"LIMOGES BENEDICTINS",4912],"FRLRT":["Lorient",47.756,-3.366,"LORIENT",3132],"FREAM":["Lorraine TGV",48.948,6.17,"LORRAINE TGV",3870],"FRLDE":["Lourdes",43.1,-0.042,"LOURDES",2956],"FRIFP":["Luc-en-Diois",44.614,5.455,"LUC EN DIOIS",5],"FRLCN":["Luçon",46.464,-1.167,"LUCON",1664],"FRLNE":["Lunéville",48.588,6.497,"LUNEVILLE",244],"LULUX":["Luxembourg",49.6,6.134,"LUXEMBOURG",2448],"FRFQI":["Luzenac – Garanou",42.764,1.753,"LUZENAC GARANOU",28],"FRLPD":["Lyon Part-Dieu",45.761,4.859,"LYON (intramuros)",20543],"FRLPE":["Lyon Perrache",45.748,4.826,"LYON (intramuros)",6602],"FRJDQ":["Lyon St-Exupéry TGV",45.721,5.075,"LYON ST EXUPERY TGV.",1610],"FRMLT":["Mâcon – Loché TGV",46.283,4.779,"MACON LOCHE TGV",2325],"FRHGU":["Mâcon Ville",46.303,4.825,"MACON VILLE",2932],"FRIMK":["Magalas",43.468,3.23,"MAGALAS",1276],"DEMHG":["Mannheim Hbf",49.479,8.47,"MANNHEIM HBF",2113],"FRMTE":["Mantes-la-Jolie",48.99,1.703,"MANTES LA JOLIE",336],"FRXMR":["Marmande",44.503,0.168,"MARMANDE",1007],"FRMLV":["Marne-la-Vallée – Chessy",48.87,2.783,"MARNE LA VALLEE CHESSY",10002],"FRMBC":["Marseille Blancarde",43.296,5.407,"MARSEILLE BLANCARDE",53],"FRMSC":["Marseille St-Charles",43.303,5.38,"MARSEILLE ST CHARLES",14157],"FRINE":["Marvejols",44.545,3.281,"MARVEJOLS",1356],"FRHMY":["Massiac-Blesle",45.254,3.197,"MASSIAC BLESLE",1356],"FRMPU":["Massy – Palaiseau",48.726,2.258,"MASSY PALAISEAU",336],"FRDJU":["Massy TGV",48.726,2.261,"MASSY TGV",8033],"FRFQH":["Mérens-les-Vals",42.659,1.837,"MERENS LES VALS",28],"FRADE":["Metz Ville",49.11,6.177,"METZ VILLE",3908],"FREAJ":["Meuse TGV",48.979,5.271,"MEUSE TGV",9529],"ITMPG":["Milano Porta Garibaldi",45.484,9.187,"MILANO PORTA GARIBALDI",1134],"FRMAU":["Millau",44.102,3.075,"MILLAU",1356],"FRMAZ":["Miramas",43.581,5.0,"MIRAMAS",753],"FRAGR":["Modane",45.193,6.658,"MODANE",1144],"FRXMW":["Montauban Ville Bourbon",44.014,1.341,"MONTAUBAN VILLE BOURBON",6221],"FRGWE":["Montbard",47.619,4.336,"MONTBARD",1012],"FRIGZ":["Montdauphin – Guillestre",44.675,6.616,"MONTDAUPHIN GUILLESTRE",62],"FRXMK":["Montélimar",44.559,4.745,"MONTELIMAR GARE SNCF",790],"FRMPL":["Montpellier St-Roch",43.605,3.881,"MONTPELLIER SAINT ROCH",8824],"FRSUF":["Montpellier Sud de France",43.595,3.924,"MONTPELLIER SUD DE FRANCE",3492],"FRMTJ":["Montréjeau – Gourdan-Polignan",43.078,0.574,"MONTREJEAU GOURDAN POLIGNAN",435],"FRMXN":["Morlaix",48.578,-3.833,"MORLAIX",2234],"FRMCD":["Mouchard",46.977,5.8,"MOUCHARD",352],"FRXMU":["Moulins-sur-Allier",46.561,3.339,"MOULINS SUR ALLIER",4101],"FRQMU":["Moûtiers – Salins",45.486,6.531,"MOUTIERS SALINS BRIDES LES BAINS",6],"FRAEK":["Mulhouse Ville",47.742,7.342,"MULHOUSE VILLE",7664],"DEBEG":["München Hbf",48.14,11.558,"MUNCHEN HBF",288],"FRENC":["Nancy",48.69,6.175,"NANCY",3476],"FRNTE":["Nantes",47.216,-1.542,"NANTES",10692],"FRXNA":["Narbonne",43.19,3.006,"NARBONNE",8058],"FRFWF":["Naucelle",44.185,2.364,"NAUCELLE",5],"FRNCH":["Neufchâteau",48.358,5.69,"NEUFCHATEAU",710],"FRNEU":["Neussargues",45.125,2.979,"NEUSSARGUES",1356],"FRNVS":["Nevers",46.987,3.151,"NEVERS",3971],"FRNIC":["Nice Ville",43.705,7.262,"NICE VILLE",3344],"FRFNI":["Nîmes Centre",43.832,4.366,"NIMES CENTRE",8752],"FRXZP":["Nîmes Pont du Gard",43.817,4.508,"NIMES PONT DU GARD",3492],"FRNIT":["Niort",46.319,-0.455,"NIORT",1761],"FRHQN":["Nurieux",46.184,5.533,"NURIEUX GARE",244],"DEZPA":["Offenburg",48.476,7.947,"OFFENBURG",288],"FRXOG":["Orange",44.137,4.82,"ORANGE",808],"FRGFI":["Orthez",43.484,-0.768,"ORTHEZ",2586],"ITOCS":["Oulx-Cesana-Claviere-Sestriere",45.039,6.831,"OUX CESANA CLAV SESTRIERE",1144],"FRPMS":["Pamiers",43.116,1.619,"PAMIERS",28],"FRPAZ":["Paris Austerlitz",48.842,2.365,"PARIS (intramuros)",7633],"FRPBE":["Paris Bercy",48.839,2.383,"PARIS (intramuros)",2157],"FRPLY":["Paris Gare de Lyon",48.845,2.374,"PARIS (intramuros)",19835],"FRPMO":["Paris Montparnasse",48.841,2.321,"PARIS (intramuros)",21376],"FRPNO":["Paris Gare du Nord",48.88,2.355,"PARIS (intramuros)",4454],"FRPST":["Paris Gare de l’Est",48.877,2.358,"PARIS (intramuros)",7878],"FRAEE":["Pau",43.292,-0.37,"PAU",2872],"FRPGF":["Perpignan",42.696,2.88,"PERPIGNAN",2876],"FRPFH":["Pierrefitte-sur-Aire",48.898,5.33,"PIERREFITTE SUR AIRE",1332],"FRPLT":["Plouaret – Trégor",48.606,-3.467,"PLOUARET TREGOR",964],"FRPIS":["Poitiers",46.582,0.333,"POITIERS",5393],"FREGR":["Pornichet",47.271,-2.345,"PORNICHET",234],"FRXPV":["Port-Vendres",42.514,3.103,"PORT VENDRES VILLE",30],"FRFQF":["Porté-Puymorens",42.539,1.825,"PORTE PUYMORENS",28],"FRUIP":["Quimper",47.994,-4.092,"QUIMPER",2858],"FRECO":["Quimperlé",47.869,-3.553,"QUIMPERLE",1299],"FRCVU":["Rang-du-Fliers – Verton",50.416,1.648,"RANG DU FLIERS VERTON BERCK",99],"FRXRN":["Redon",47.652,-2.088,"REDON",1571],"FRRHE":["Reims",49.259,4.024,"REIMS",821],"FRRNT":["Remiremont",48.016,6.599,"REMIREMONT",362],"FRRNS":["Rennes",48.104,-1.673,"RENNES",9526],"FRBDT":["Rethel",49.504,4.37,"RETHEL",476],"DERSH":["Ringsheim/Europa-Park",48.249,7.773,"RINGSHEIM EUROPA PARK",288],"FRRIO":["Riom – Châtel-Guyon",45.89,3.12,"RIOM CHATEL GUYON",2099],"FRRNE":["Roanne",46.039,4.063,"ROANNE",2002],"FRFSA":["Rocamadour – Padirac",44.818,1.657,"ROCAMADOUR PADIRAC",62],"FRRCO":["Rochefort",45.947,-0.964,"ROCHEFORT",1610],"FRRDZ":["Rodez",44.363,2.581,"RODEZ",62],"FRRSP":["Rosporden",47.96,-3.833,"ROSPORDEN",1299],"FRADP":["Roubaix",50.696,3.163,"ROUBAIX",48],"FRURD":["Rouen Rive Droite",49.449,1.094,"ROUEN RIVE DROITE",336],"DESBK":["Saarbrücken Hbf",49.241,6.991,"SAARBRUECKEN/SARREBRUCK",1044],"FRSAB":["Sablé-sur-Sarthe",47.842,-0.342,"SABLE SUR SARTHE",835],"FRSZE":["Saincaize",46.931,3.072,"SAINCAIZE",130],"FRINB":["St-Chély-d’Apcher",44.802,3.271,"SAINT CHELY D'APCHER",1356],"FRHHD":["St-Étienne Châteaucreux",45.443,4.4,"SAINT ETIENNE CHATEAUCREUX",497],"FRINM":["St-Georges-de-Luzençon",44.067,2.984,"SAINT GEORGES DE LUZENCON",1356],"FRSGF":["St-Germain-des-Fossés",46.209,3.431,"SAINT GERMAIN DES FOSSES",2056],"FRPFI":["Saint-Mihiel",48.892,5.541,"SAINT MIHIEL",1998],"FRSHY":["Saint-Mihiel Détention",48.905,5.555,"SAINT MIHIEL DETENTION",1998],"FRXSJ":["St-Quentin",49.84,3.297,"SAINT QUENTIN",186],"FRINN":["St-Rome-de-Cernon",44.014,2.967,"SAINT ROME DE CERNON",1356],"FRXST":["Saintes",45.749,-0.618,"SAINTES",1610],"FRSIA":["Sampigny Centre",48.848,5.521,"SAMPIGNY CENTRE",1998],"FRACN":["Saumur",47.269,-0.071,"SAUMUR",2470],"FRFPU":["Saverdun",43.239,1.571,"SAVERDUN",28],"FRSNE":["Saverne",48.744,7.362,"SAVERNE",259],"FRXSW":["Sedan",49.695,4.93,"SEDAN",368],"FRXSQ":["Sélestat",48.26,7.443,"SELESTAT",204],"FRXSY":["Sète",43.412,3.697,"SETE",3770],"FRSVC":["Séverac-le-Château",44.325,3.057,"SEVERAC LE CHATEAU",1356],"FRSOU":["Souillac",44.902,1.467,"SOUILLAC",2962],"FRLPZ":["Souilly",49.028,5.283,"SOUILLY",1324],"FRSBK":["St-Brieuc",48.508,-2.765,"ST BRIEUC",2858],"FRFST":["St-Christophe",44.465,2.408,"ST CHRISTOPHE",62],"FRSDM":["St-Denis-près-Martel",44.946,1.666,"ST DENIS PRES MARTEL",62],"FRXTD":["Saint-Dié-des-Vosges",48.282,6.949,"ST DIE",181],"FRIMW":["St-Flour – Chaudes-Aigues",45.035,3.106,"ST FLOUR CHAUDES AIGUES",1356],"FRFPH":["St-Gaudens",43.105,0.729,"ST GAUDENS",678],"FRXJZ":["St-Jean-de-Luz – Ciboure",43.386,-1.661,"ST JEAN DE LUZ CIBOURE",2194],"FRHPN":["St-Jean-de-Maurienne – Arvan",45.278,6.355,"ST JEAN DE MAURIENNE ARVAN",378],"FREJC":["St-Maixent",46.407,-0.201,"ST MAIXENT (DEUX SEVRES)",729],"FRXSB":["St-Malo",48.647,-2.004,"ST MALO",757],"FRSNR":["St-Nazaire",47.286,-2.211,"ST NAZAIRE",1474],"FRXSH":["St-Pierre-des-Corps",47.386,0.724,"ST PIERRE DES CORPS",9094],"FRXSK":["St-Raphaël – Valescure",43.424,6.769,"ST RAPHAEL VALESCURE",3040],"FRGHA":["St-Vincent-de-Tyrosse",43.658,-1.306,"ST VINCENT DE TYROSSE",46],"FRAEG":["Strasbourg",48.585,7.735,"STRASBOURG",11372],"DESGT":["Stuttgart Hbf",48.784,9.182,"STUTTGART HBF",1017],"FREIP":["Surgères",46.113,-0.762,"SURGERES",1558],"FRFQM":["Tarascon-sur-Ariège",42.85,1.6,"TARASCON SUR ARIEGE",28],"FRXTB":["Tarbes",43.24,0.069,"TARBES",2812],"FRTHP":["Haute-Picardie TGV",49.861,2.832,"TGV HAUTE PICARDIE",3560],"FRXTH":["Thionville",49.354,6.17,"THIONVILLE",2424],"FRXTS":["Thonon-les-Bains",46.369,6.482,"THONON LES BAINS",52],"ITBGD":["Torino Porta Nuova",45.061,7.678,"TORINO PORTA NUOVA",30],"ITTRS":["Torino Porta Susa",45.072,7.665,"TORINO PORTA SUSA",1114],"FRTOL":["Toul",48.679,5.881,"TOUL",710],"FRTLN":["Toulon",43.128,5.929,"TOULON",4078],"FRXYT":["Toulouse Matabiau",43.611,1.454,"TOULOUSE MATABIAU",9954],"FRADM":["Tourcoing",50.717,3.168,"TOURCOING",48],"FRINO":["Tournemire – Roquefort",43.97,3.017,"TOURNEMIRE ROQUEFORT",1356],"FRAFW":["Tours",47.39,0.694,"TOURS",2036],"DEQUL":["Ulm Hbf",48.399,9.982,"ULM HBF",288],"FRAAW":["Uzerche",45.441,1.57,"UZERCHE",1671],"FRVLA":["Valence TGV",44.992,4.979,"VALENCE TGV AUVERGNE RHONE ALPES",11533],"FRVAF":["Valence Ville",44.928,4.893,"VALENCE VILLE",790],"FRXVS":["Valenciennes",50.363,3.517,"VALENCIENNES",212],"CHAGL":["Vallorbe",46.712,6.371,"VALLORBE",703],"FRVNE":["Vannes",47.665,-2.752,"VANNES",3042],"FRESL":["Vendôme – Villiers-sur-Loir",47.822,1.021,"VENDOME VILLIERS SUR LOIR",2214],"FRXVN":["Verdun",49.165,5.38,"VERDUN",1324],"FRDHT":["Versailles-Chantiers",48.796,2.136,"VERSAILLES CHANTIERS",336],"FRVDY":["Veynes – Dévoluy",44.532,5.816,"VEYNES DEVOLUY",38],"FRVHY":["Vichy",46.127,3.43,"VICHY",2099],"FRXVZ":["Vierzon",47.226,2.06,"VIERZON",6559],"FRXVT":["Vitré",48.123,-1.212,"VITRE",503],"FRBFO":["Vitry-le-François",48.718,4.588,"VITRY LE FRANCOIS",212],"FRVZD":["Viviez – Decazeville",44.556,2.218,"VIVIEZ DECAZEVILLE",62],"CHAJD":["Zürich HB",47.378,8.539,"ZURICH HB",970]};
+window.QL_FRANCE={"W":1195,"H":1015,"LON0":-5.4,"LAT1":51.3,"C":0.69088,"K":100,"d":"M866 380L856 381L857 385L853 387L848 394L858 393L861 396L860 397L853 401L854 406L839 419L835 423L836 426L831 430L822 433L817 437L820 441L818 450L819 451L795 472L798 475L792 488L799 493L795 501L796 505L786 508L785 517L796 516L807 508L809 504L806 505L804 502L809 493L815 496L823 490L838 489L843 492L841 495L847 502L843 510L843 516L850 518L848 525L853 525L860 538L853 545L844 546L843 557L852 565L857 566L855 571L857 580L869 589L865 597L866 604L861 609L860 607L854 609L854 612L849 613L849 616L846 617L841 614L831 620L834 628L839 628L839 639L847 645L852 644L857 646L857 651L861 659L862 662L856 661L854 663L852 673L847 677L852 686L849 688L849 694L856 702L857 706L868 709L876 716L880 715L881 718L904 713L903 717L906 723L903 727L902 733L898 734L891 744L893 751L885 758L874 761L871 765L868 765L865 774L853 777L853 782L849 787L838 789L837 796L828 802L836 803L830 814L826 811L822 815L816 815L813 816L813 821L807 818L802 818L799 821L798 827L796 826L796 822L790 822L782 818L782 821L776 825L775 819L767 816L764 811L760 814L755 809L742 809L744 805L741 794L734 797L721 797L716 787L714 787L709 789L709 797L695 795L688 793L690 790L688 786L661 783L658 781L659 777L656 775L650 775L643 778L630 790L626 791L616 803L607 802L599 807L587 823L583 834L583 867L584 876L590 879L592 886L586 887L583 883L577 882L575 884L569 884L566 888L558 890L558 896L551 894L549 897L529 886L522 888L517 894L513 894L510 894L507 885L493 881L493 875L496 873L492 871L493 869L480 864L475 865L475 869L473 870L467 858L453 859L450 853L439 849L437 851L422 844L419 846L418 852L419 861L403 861L398 858L393 863L391 858L385 856L372 862L366 858L362 850L361 851L351 845L346 850L338 847L335 852L326 842L323 841L321 833L308 835L296 828L295 829L288 824L286 826L283 823L285 818L280 821L279 827L274 825L271 821L275 817L278 805L269 801L265 801L264 805L262 805L261 800L258 799L254 800L249 793L262 787L273 764L282 717L286 675L291 664L303 665L300 659L293 652L286 667L293 583L298 574L318 595L326 622L331 628L332 626L327 617L322 593L318 584L304 572L303 569L288 559L287 552L295 550L293 544L297 543L300 535L297 531L300 529L295 517L289 513L290 509L296 504L295 499L290 498L290 503L280 496L272 496L269 490L262 489L248 480L245 469L225 448L224 441L226 441L233 429L236 427L231 421L219 417L219 415L223 413L223 403L222 402L214 406L209 402L204 404L199 402L200 397L196 393L204 387L200 384L200 381L204 380L203 379L193 378L190 376L188 380L176 380L172 374L182 376L185 372L183 366L176 368L173 372L170 370L165 373L164 372L157 373L159 382L157 383L156 372L151 366L157 358L154 357L151 365L142 357L135 360L130 354L130 345L129 354L119 352L115 349L107 350L98 339L98 345L85 345L85 342L84 350L72 350L71 348L73 344L67 334L59 329L58 330L48 327L47 324L77 320L78 315L76 311L65 306L58 313L59 306L55 304L59 296L60 302L70 302L75 300L79 302L81 300L71 296L66 297L69 291L67 290L55 296L50 294L43 297L44 293L42 289L44 277L48 273L55 272L61 267L67 266L73 262L81 265L84 261L93 261L98 257L100 265L103 264L107 267L107 261L109 260L120 261L120 264L126 263L128 255L125 253L128 248L138 250L151 243L152 247L159 243L160 247L165 248L165 250L163 251L171 255L170 258L178 265L178 271L185 274L187 279L201 269L203 265L206 266L213 263L215 264L212 268L217 266L221 272L226 270L225 267L227 266L233 268L237 277L238 276L233 265L239 261L245 261L244 265L246 268L251 270L273 267L277 265L265 256L264 248L262 246L266 237L262 222L263 207L260 209L255 197L248 193L243 176L246 173L246 168L245 165L239 163L239 157L261 165L268 164L275 160L285 160L288 169L284 172L283 176L292 189L292 192L296 194L299 191L308 190L316 194L344 196L357 202L373 197L382 190L396 186L381 184L378 179L386 159L413 145L444 138L456 133L474 119L476 113L480 108L483 111L489 112L479 102L480 95L486 95L481 90L483 76L485 76L482 73L481 60L484 54L482 43L487 42L496 35L549 21L551 30L555 35L552 38L555 49L561 49L567 58L573 61L576 56L582 53L591 52L595 59L598 60L597 64L600 77L606 81L613 77L616 78L615 80L622 80L626 85L626 93L629 100L632 95L639 95L643 97L651 94L658 103L664 103L665 104L658 116L663 116L665 122L659 128L659 132L663 134L671 133L680 136L685 135L696 130L697 123L702 116L706 114L710 115L711 117L704 133L711 139L708 144L709 151L718 150L725 153L730 161L737 160L741 165L740 169L742 167L748 171L751 180L772 174L776 176L779 180L786 181L786 185L805 179L813 184L820 184L826 188L825 190L828 192L827 196L836 208L837 208L839 214L845 215L847 212L845 209L852 208L859 211L860 219L864 216L876 218L882 215L882 213L887 212L891 213L893 220L901 225L907 226L912 223L917 227L921 224L932 231L941 232L932 249L924 254L923 258L915 266L908 290L908 296L897 318L896 327L900 333L895 342L895 356L892 360L897 372L892 376L893 378L890 382L887 380L888 382L883 387L874 388L868 386L870 381ZM1023 944L1022 964L1015 969L1015 972L1017 970L1020 970L1014 978L1015 982L1010 986L1012 989L1010 993L1007 993L1001 990L1002 986L987 979L979 971L981 967L986 965L989 961L973 955L976 952L975 950L979 949L981 941L980 938L968 940L967 935L972 932L971 929L977 926L977 924L966 914L965 906L973 902L969 899L968 895L964 895L968 891L968 888L971 888L972 879L978 873L980 874L982 870L996 866L1003 857L1010 856L1015 863L1017 860L1018 850L1016 847L1020 829L1027 831L1029 851L1026 863L1031 873L1034 902L1033 920L1023 934Z"};
+</script>
+<script>
+/* Quai Libre — moteur de recherche TGV MAX (pur, sans DOM). */
+(function (root) {
+  'use strict';
+  const DAY = 1440;
+
+  // Temps minimum (min) pour changer de gare dans une même ville (gares « intramuros »).
+  const CROSS = {
+    'FRPNO|FRPST': 25, 'FRPLY|FRPBE': 20, 'FRPAZ|FRPLY': 30, 'FRPAZ|FRPBE': 30,
+    'FRADJ|FRLLE': 20, 'FRLPD|FRLPE': 35
+  };
+  const CROSS_DEFAULT = { PARIS: 60, LYON: 35, LILLE: 20 };
+
+  const hm = (s) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(s || '');
+    return m ? (+m[1]) * 60 + (+m[2]) : NaN;
+  };
+  const dayNum = (iso) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5) : NaN;
+  };
+  const isoOf = (dn) => new Date(dn * 864e5).toISOString().slice(0, 10);
+  const groupKey = (name) => (name || '').replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim().toUpperCase();
+
+  /* ---------- Lecture des données (CSV ou JSON de l'open data SNCF) ---------- */
+  function splitLine(line, sep) {
+    if (line.indexOf('"') < 0) return line.split(sep);
+    const out = []; let cur = ''; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) {
+        if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === sep) { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  const FIELD_ALIASES = {
+    date: ['date'], train: ['train_no', 'train', 'numero_train'], axe: ['axe'],
+    o: ['origine_iata'], d: ['destination_iata'], on: ['origine'], dname: ['destination'],
+    dep: ['heure_depart'], arr: ['heure_arrivee'], ok: ['od_happy_card']
+  };
+  const REQUIRED = ['date', 'train', 'o', 'd', 'dep', 'arr'];
+
+  function parse(text) {
+    text = String(text || '').replace(/^﻿/, '');
+    const t = text.trimStart();
+    const recs = [];
+    if (t[0] === '[' || t[0] === '{') {
+      let j = JSON.parse(t);
+      if (!Array.isArray(j)) j = j.results || j.records || [];
+      for (const raw of j) {
+        const r = raw.fields || (raw.record && raw.record.fields) || raw;
+        recs.push({
+          date: r.date, train: String(r.train_no ?? ''), axe: r.axe || '', o: r.origine_iata, d: r.destination_iata,
+          on: r.origine, dname: r.destination, dep: r.heure_depart, arr: r.heure_arrivee, ok: r.od_happy_card
+        });
+      }
+      if (!recs.length || !recs[0].o) throw new Error('Ce fichier ne contient pas de trajets TGV MAX lisibles.');
+    } else {
+      const lines = text.split(/\r?\n/);
+      const head = lines[0] || '';
+      const sep = head.includes(';') ? ';' : head.includes('\t') ? '\t' : ',';
+      const cols = splitLine(head, sep).map((c) => c.trim().toLowerCase());
+      const ix = {};
+      for (const [k, al] of Object.entries(FIELD_ALIASES)) ix[k] = cols.findIndex((c) => al.includes(c));
+      const missing = REQUIRED.filter((k) => ix[k] < 0);
+      if (missing.length) throw new Error('Ce fichier ne ressemble pas à l’export TGV MAX (colonnes manquantes : ' + missing.map((k) => FIELD_ALIASES[k][0]).join(', ') + ').');
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const p = splitLine(line, sep);
+        recs.push({
+          date: p[ix.date], train: p[ix.train], axe: ix.axe >= 0 ? p[ix.axe] : '', o: p[ix.o], d: p[ix.d],
+          on: ix.on >= 0 ? p[ix.on] : '', dname: ix.dname >= 0 ? p[ix.dname] : '',
+          dep: p[ix.dep], arr: p[ix.arr], ok: ix.ok >= 0 ? (p[ix.ok] || '').trim() : undefined
+        });
+      }
+    }
+    return build(recs);
+  }
+
+  function build(recs) {
+    const edges = []; const names = new Map(); const seen = new Set();
+    for (const r of recs) {
+      if (r.ok !== undefined && r.ok !== '' && r.ok !== 'OUI') continue;
+      const dn = dayNum(r.date); const dep0 = hm(r.dep); const arr0 = hm(r.arr);
+      const o = (r.o || '').trim(); const d = (r.d || '').trim();
+      if (!isFinite(dn) || isNaN(dep0) || isNaN(arr0) || !o || !d || o === d) continue;
+      const axe = (r.axe || '').trim();
+      // Les trains de nuit sont datés au jour de départ du train : leurs arrêts après minuit sont le lendemain.
+      const shift = axe === 'IC NUIT' && dep0 < 720 ? DAY : 0;
+      const dep = dn * DAY + dep0 + shift;
+      const arr = dn * DAY + arr0 + (arr0 < dep0 ? DAY : 0) + shift;
+      const train = String(r.train || '').trim();
+      const key = dep + '|' + train + '|' + o + '|' + d;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push({ o, d, dep, arr, train, axe, dn });
+      if (r.on) names.set(o, r.on); if (r.dname) names.set(d, r.dname);
+    }
+    if (!edges.length) throw new Error('Aucun trajet avec place MAX disponible dans ces données.');
+    return index(edges, names);
+  }
+
+  function index(edges, names) {
+    const byO = new Map(); const byD = new Map(); const byDay = new Map();
+    const push = (m, k, v) => { let a = m.get(k); if (!a) m.set(k, a = []); a.push(v); };
+    let minDn = Infinity; let maxDn = -Infinity;
+    for (const e of edges) {
+      push(byO, e.o, e); push(byD, e.d, e); push(byDay, e.dn, e);
+      if (e.dn < minDn) minDn = e.dn; if (e.dn > maxDn) maxDn = e.dn;
+    }
+    for (const a of byO.values()) a.sort((x, y) => x.dep - y.dep);
+    for (const a of byD.values()) a.sort((x, y) => x.arr - y.arr);
+    const days = [...byDay.keys()].sort((a, b) => a - b);
+    return { edges, byO, byD, byDay, days, minDn, maxDn, names };
+  }
+
+  /* ---------- Réseau : regroupement des gares par ville ---------- */
+  // stationsTable : { code: [label, lat, lon, nomJeuDeDonnées, trafic] }
+  function attachGroups(net, stationsTable) {
+    const group = new Map(); const gCodes = new Map();
+    const codes = new Set([...net.byO.keys(), ...net.byD.keys(), ...Object.keys(stationsTable || {})]);
+    for (const c of codes) {
+      const fromData = net.names.get(c);
+      const fromTable = stationsTable && stationsTable[c] ? stationsTable[c][3] : '';
+      const g = groupKey(fromData || fromTable) || c;
+      group.set(c, g);
+      let a = gCodes.get(g); if (!a) gCodes.set(g, a = []); a.push(c);
+    }
+    net.group = group; net.gCodes = gCodes;
+    return net;
+  }
+
+  function crossTime(net, a, b) {
+    if (a === b) return 0;
+    const ga = net.group.get(a);
+    if (!ga || ga !== net.group.get(b)) return Infinity;
+    const k = a < b ? a + '|' + b : b + '|' + a;
+    if (CROSS[k] != null) return CROSS[k];
+    for (const p in CROSS_DEFAULT) if (ga.startsWith(p)) return CROSS_DEFAULT[p];
+    return 30;
+  }
+
+  // Temps minimal entre l'arrivée de `a` et le départ de `b`.
+  function needTransfer(net, a, b, opt) {
+    if (a.d === b.o) {
+      if (a.train === b.train && b.dep >= a.arr && b.dep - a.arr <= 90) return 0; // on reste dans le même train
+      return opt.transfer;
+    }
+    return Math.max(opt.transfer, crossTime(net, a.d, b.o));
+  }
+
+  function lowerBound(arr, t, key) {
+    let lo = 0; let hi = arr.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid][key] < t) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+
+  function makeJourney(legs) {
+    const dep = legs[0].dep; const arr = legs[legs.length - 1].arr;
+    return { legs, dep, arr, dur: arr - dep, changes: legs.length - 1 };
+  }
+
+  /* Front de Pareto : on garde les trajets qu'aucun autre ne bat (départ plus tard, arrivée plus tôt,
+     moins de correspondances). `slack` minutes par correspondance évitée : un trajet plus simple
+     l'emporte s'il n'arrive que légèrement plus tard. */
+  function pareto(list, slack) {
+    slack = slack == null ? 20 : slack;
+    const sorted = list.slice().sort((a, b) => a.changes - b.changes || b.dep - a.dep || a.arr - b.arr);
+    const kept = [];
+    for (const j of sorted) {
+      let dominated = false;
+      for (const k of kept) {
+        const s = (j.changes - k.changes) * slack;
+        if (k.dep >= j.dep && k.arr <= j.arr + s) { dominated = true; break; }
+      }
+      if (!dominated) kept.push(j);
+    }
+    return kept.sort((a, b) => a.dep - b.dep || a.arr - b.arr);
+  }
+
+  /* ---------- Recherche A → B (directs + correspondances) ---------- */
+  // q : { fromGroups:Set, toGroups:Set, tMin, tMax, maxLegs, transfer, maxWait, cap }
+  function journeys(net, q) {
+    const G = net.group; const GC = net.gCodes;
+    const maxLegs = Math.max(1, Math.min(4, q.maxLegs || 1));
+    const maxWait = q.maxWait || 240;
+    const opt = { transfer: q.transfer == null ? 20 : q.transfer };
+    const cap = q.cap || 400000;
+
+    // Nombre minimal de trains pour atteindre la destination depuis chaque ville (sans tenir compte des horaires).
+    const horizon = q.tMax + maxLegs * maxWait + DAY;
+    const radj = new Map();
+    const d0 = Math.floor(q.tMin / DAY);
+    for (let dn = d0 - 1; dn <= Math.floor(horizon / DAY); dn++) {
+      const list = net.byDay.get(dn); if (!list) continue;
+      for (const e of list) {
+        if (e.dep < q.tMin || e.dep > horizon) continue;
+        const go = G.get(e.o); const gd = G.get(e.d);
+        if (go === gd) continue;
+        let s = radj.get(gd); if (!s) radj.set(gd, s = new Set()); s.add(go);
+      }
+    }
+    const reach = new Map(); let frontier = [];
+    for (const g of q.toGroups) { reach.set(g, 0); frontier.push(g); }
+    for (let k = 1; k < maxLegs && frontier.length; k++) {
+      const next = [];
+      for (const g of frontier) for (const p of radj.get(g) || []) if (!reach.has(p)) { reach.set(p, k); next.push(p); }
+      frontier = next;
+    }
+
+    const found = []; const path = []; const visited = new Set(q.fromGroups);
+    let steps = 0; let partial = false;
+
+    function dfs(legsLeft) {
+      const last = path[path.length - 1];
+      const gArr = G.get(last.d);
+      if (q.toGroups.has(gArr)) { found.push(makeJourney(path.slice())); return; }
+      if (legsLeft === 0) return;
+      for (const c of GC.get(gArr) || [last.d]) {
+        if (c !== last.d && !isFinite(crossTime(net, last.d, c))) continue;
+        const list = net.byO.get(c); if (!list) continue;
+        for (let i = lowerBound(list, last.arr, 'dep'); i < list.length; i++) {
+          const e = list[i];
+          if (e.dep > last.arr + maxWait) break;
+          if (++steps > cap) { partial = true; return; }
+          if (e.dep < last.arr + needTransfer(net, last, e, opt)) continue;
+          const gd = G.get(e.d);
+          if (visited.has(gd) && !q.toGroups.has(gd)) continue;
+          const r = reach.get(gd);
+          if (r === undefined || r > legsLeft - 1) continue;
+          visited.add(gd); path.push(e);
+          dfs(legsLeft - 1);
+          path.pop(); visited.delete(gd);
+          if (partial) return;
+        }
+      }
+    }
+
+    for (const g of q.fromGroups) {
+      for (const c of GC.get(g) || []) {
+        const list = net.byO.get(c); if (!list) continue;
+        for (let i = lowerBound(list, q.tMin, 'dep'); i < list.length && list[i].dep <= q.tMax; i++) {
+          const e = list[i];
+          const gd = G.get(e.d);
+          if (q.fromGroups.has(gd)) continue;
+          const r = reach.get(gd);
+          if (r === undefined || r > maxLegs - 1) continue;
+          visited.add(gd); path.push(e);
+          dfs(maxLegs - 1);
+          path.pop(); visited.delete(gd);
+          if (partial) break;
+        }
+        if (partial) break;
+      }
+      if (partial) break;
+    }
+    return { list: pareto(found, q.slack), raw: found.length, partial };
+  }
+
+  /* ---------- Toutes les destinations depuis une ville ---------- */
+  // q : { fromGroups, tMin, tMax, maxLegs (1|2), transfer, maxWait }
+  function exploreFrom(net, q) {
+    const G = net.group; const GC = net.gCodes; const opt = { transfer: q.transfer == null ? 20 : q.transfer };
+    const maxWait = q.maxWait || 240; const res = new Map();
+    const add = (g, legs) => { let a = res.get(g); if (!a) res.set(g, a = []); a.push(makeJourney(legs)); };
+    for (const g0 of q.fromGroups) for (const c of GC.get(g0) || []) {
+      const list = net.byO.get(c); if (!list) continue;
+      for (let i = lowerBound(list, q.tMin, 'dep'); i < list.length && list[i].dep <= q.tMax; i++) {
+        const e = list[i]; const g1 = G.get(e.d);
+        if (q.fromGroups.has(g1)) continue;
+        add(g1, [e]);
+        if ((q.maxLegs || 1) < 2) continue;
+        for (const c2 of GC.get(g1) || [e.d]) {
+          if (c2 !== e.d && !isFinite(crossTime(net, e.d, c2))) continue;
+          const l2 = net.byO.get(c2); if (!l2) continue;
+          for (let k = lowerBound(l2, e.arr, 'dep'); k < l2.length; k++) {
+            const f = l2[k];
+            if (f.dep > e.arr + maxWait) break;
+            if (f.dep < e.arr + needTransfer(net, e, f, opt)) continue;
+            const g2 = G.get(f.d);
+            if (g2 === g1 || q.fromGroups.has(g2)) continue;
+            add(g2, [e, f]);
+          }
+        }
+      }
+    }
+    const out = [];
+    for (const [g, js] of res) out.push({ g, list: pareto(js, q.slack) });
+    return out;
+  }
+
+  /* ---------- Toutes les origines possibles vers une ville ---------- */
+  // q : { toGroups, tMin, tMax (fenêtre du 1er départ), maxLegs (1|2), transfer, maxWait }
+  function exploreTo(net, q) {
+    const G = net.group; const GC = net.gCodes; const opt = { transfer: q.transfer == null ? 20 : q.transfer };
+    const maxWait = q.maxWait || 240; const res = new Map();
+    const add = (g, legs) => { let a = res.get(g); if (!a) res.set(g, a = []); a.push(makeJourney(legs)); };
+    for (const gT of q.toGroups) for (const c of GC.get(gT) || []) {
+      const list = net.byD.get(c); if (!list) continue;
+      for (const e of list) {
+        if (e.dep < q.tMin || e.dep > q.tMax + ((q.maxLegs || 1) > 1 ? maxWait + 600 : 0)) continue;
+        const g1 = G.get(e.o);
+        if (q.toGroups.has(g1)) continue;
+        if (e.dep <= q.tMax) add(g1, [e]);
+        if ((q.maxLegs || 1) < 2) continue;
+        for (const c0 of GC.get(g1) || [e.o]) {
+          if (c0 !== e.o && !isFinite(crossTime(net, c0, e.o))) continue;
+          const l0 = net.byD.get(c0); if (!l0) continue;
+          for (let k = lowerBound(l0, e.dep - maxWait, 'arr'); k < l0.length && l0[k].arr <= e.dep; k++) {
+            const f = l0[k];
+            if (f.dep < q.tMin || f.dep > q.tMax) continue;
+            if (e.dep < f.arr + needTransfer(net, f, e, opt)) continue;
+            const g0 = G.get(f.o);
+            if (g0 === g1 || q.toGroups.has(g0)) continue;
+            add(g0, [f, e]);
+          }
+        }
+      }
+    }
+    const out = [];
+    for (const [g, js] of res) out.push({ g, list: pareto(js, q.slack) });
+    return out;
+  }
+
+  /* ---------- Aller-retour dans la journée ---------- */
+  // q : { homeGroups, dn, earliest (min depuis minuit), maxLegs, transfer, maxWait, minStay, latestBack (min, peut dépasser 1440) }
+  function dayTrips(net, q) {
+    const base = q.dn * DAY;
+    const outs = exploreFrom(net, { fromGroups: q.homeGroups, tMin: base + (q.earliest || 0), tMax: base + DAY - 1, maxLegs: q.maxLegs, transfer: q.transfer, maxWait: q.maxWait });
+    const backs = exploreTo(net, { toGroups: q.homeGroups, tMin: base, tMax: base + DAY - 1, maxLegs: q.maxLegs, transfer: q.transfer, maxWait: q.maxWait });
+    const backBy = new Map(backs.map((b) => [b.g, b.list]));
+    const latest = base + (q.latestBack || DAY + 90);
+    const minStay = q.minStay == null ? 120 : q.minStay;
+    const res = [];
+    for (const o of outs) {
+      const back = backBy.get(o.g); if (!back) continue;
+      let best = null;
+      for (const go of o.list) {
+        for (const b of back) {
+          if (b.arr > latest || b.dep < go.arr + minStay) continue;
+          const stay = b.dep - go.arr;
+          if (!best || stay > best.stay || (stay === best.stay && (go.changes + b.changes) < (best.go.changes + best.back.changes))) best = { g: o.g, go, back: b, stay };
+        }
+      }
+      if (best) res.push(best);
+    }
+    return res.sort((a, b) => b.stay - a.stay);
+  }
+
+  const api = { DAY, hm, dayNum, isoOf, groupKey, parse, build, attachGroups, crossTime, journeys, exploreFrom, exploreTo, dayTrips, pareto };
+  root.QLEngine = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const E = window.QLEngine;
+  const ST = window.QL_STATIONS;
+  const FR = window.QL_FRANCE;
+  const DAY = E.DAY;
+  const API = 'https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/tgvmax';
+  const SELECT = 'date,train_no,axe,origine_iata,destination_iata,origine,destination,heure_depart,heure_arrivee';
+  const EXPORT_URL = API + '/exports/csv?delimiter=%3B&select=' + SELECT + '&where=' + encodeURIComponent('od_happy_card="OUI"');
+  const BOOK_URL = 'https://www.sncf-connect.com/';
+  const PREFS_KEY = 'quai-libre:v1';
+
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const pad = (n) => String(n).padStart(2, '0');
+  const plural = (n, one, many) => n + ' ' + (n > 1 ? (many || one + 's') : one);
+
+  /* ---------- Heure de Paris ---------- */
+  const parisFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  function parisNow() {
+    const p = {}; for (const x of parisFmt.formatToParts(new Date())) p[x.type] = x.value;
+    const iso = p.year + '-' + p.month + '-' + p.day;
+    const dn = E.dayNum(iso);
+    return { iso, dn, min: (+p.hour % 24) * 60 + (+p.minute), abs: dn * DAY + (+p.hour % 24) * 60 + (+p.minute) };
+  }
+  const dFmtShort = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dFmtLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const dFmtMonth = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' });
+  const dFmtDow = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', timeZone: 'UTC' });
+  const dateShort = (dn) => dFmtShort.format(new Date(dn * 864e5));
+  const dateLong = (dn) => dFmtLong.format(new Date(dn * 864e5));
+  const hhmm = (abs) => { const m = ((abs % DAY) + DAY) % DAY; return pad(Math.floor(m / 60)) + ':' + pad(m % 60); };
+  const timeHTML = (abs, refDn) => { const off = Math.floor(abs / DAY) - refDn; return esc(hhmm(abs)) + (off > 0 ? '<sup>+' + off + '</sup>' : ''); };
+  const timeTxt = (abs, refDn) => { const off = Math.floor(abs / DAY) - refDn; return hhmm(abs) + (off > 0 ? ' (+' + off + ')' : ''); };
+  const dur = (m) => m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + pad(m % 60);
+
+  /* ---------- Gares et villes ---------- */
+  const SPECIAL = { 'PARIS (INTRAMUROS)': 'Paris (toutes gares)', 'LYON (INTRAMUROS)': 'Lyon (Part-Dieu, Perrache)', 'LILLE (INTRAMUROS)': 'Lille (Flandres, Europe)' };
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[’'\-–().,/]/g, ' ').replace(/\bsainte\b/g, 'ste').replace(/\bsaint\b/g, 'st').replace(/\s+/g, ' ').trim();
+  const titleCase = (s) => String(s || '').toLowerCase().replace(/(^|[\s\-'(/])([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase());
+  let net = null;
+  let places = new Map();
+  const stationLabel = (c) => (ST[c] && ST[c][0]) || titleCase((net && net.names.get(c)) || c);
+  const coordOf = (c) => (ST[c] ? [ST[c][1], ST[c][2]] : null);
+
+  function rebuildPlaces() {
+    const groupOf = new Map();
+    if (net) for (const [c, g] of net.group) groupOf.set(c, g);
+    else for (const c in ST) groupOf.set(c, E.groupKey(ST[c][3]));
+    const m = new Map();
+    for (const [c, g] of groupOf) {
+      let p = m.get(g);
+      if (!p) m.set(g, p = { g, codes: [], n: 0, lat: 0, lon: 0, k: 0 });
+      p.codes.push(c);
+      p.n += ST[c] ? ST[c][4] : 1;
+      const xy = coordOf(c); if (xy) { p.lat += xy[0]; p.lon += xy[1]; p.k++; }
+    }
+    for (const p of m.values()) {
+      if (p.k) { p.lat /= p.k; p.lon /= p.k; } else { p.lat = p.lon = null; }
+      p.codes.sort((a, b) => (ST[b] ? ST[b][4] : 0) - (ST[a] ? ST[a][4] : 0));
+      p.label = SPECIAL[p.g] || (p.codes.length === 1 ? stationLabel(p.codes[0]) : titleCase(p.g));
+      p.sub = p.codes.length > 1 ? p.codes.map((c) => stationLabel(c).replace(/^(Paris|Lyon|Lille)[\s-]+/, '')).join(', ') : '';
+      p.nl = norm(p.label);
+      p.hay = norm(p.label + ' ' + p.g + ' ' + p.codes.map(stationLabel).join(' '));
+    }
+    places = m;
+  }
+
+  function suggest(q) {
+    const nq = norm(q);
+    const all = [...places.values()];
+    if (!nq) return all.sort((a, b) => b.n - a.n).slice(0, 8);
+    const words = nq.split(' ');
+    const out = [];
+    for (const p of all) {
+      let s;
+      if (p.nl.startsWith(nq)) s = 0;
+      else if (words.every((w) => p.hay.includes(w))) s = (' ' + p.hay).includes(' ' + words[0]) ? 1 : 2;
+      else continue;
+      out.push([s, p]);
+    }
+    out.sort((a, b) => a[0] - b[0] || b[1].n - a[1].n);
+    return out.slice(0, 8).map((x) => x[1]);
+  }
+
+  function km(a, b) {
+    const R = 6371, r = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function expand(g, radius) {
+    const set = new Set([g]);
+    const p = places.get(g);
+    if (!radius || !p || p.lat == null) return set;
+    for (const q of places.values()) if (q.lat != null && km(p, q) <= radius) set.add(q.g);
+    return set;
+  }
+  const placeLabel = (g) => (places.get(g) ? places.get(g).label : titleCase(g));
+  function modeOf(axe) {
+    if (axe === 'IC NUIT') return 'Intercités de nuit';
+    if (/^IC/.test(axe || '')) return 'Intercités';
+    return 'TGV INOUI';
+  }
+  const modeShort = (axe) => (axe === 'IC NUIT' ? 'IC Nuit' : /^IC/.test(axe || '') ? 'IC' : 'TGV');
+
+  /* ---------- Saisie des gares (combobox) ---------- */
+  function Combo(input, list, onPick) {
+    let items = [];
+    let active = -1;
+    function render() {
+      if (!items.length) {
+        list.innerHTML = '<li class="o-empty" role="option" aria-disabled="true">Aucune gare TGV MAX ne correspond</li>';
+      } else {
+        list.innerHTML = items.map((p, i) => '<li role="option" id="' + list.id + '-' + i + '" data-g="' + esc(p.g) + '" aria-selected="' + (i === active) + '"><span class="o-name">' + esc(p.label) + '</span>' + (p.sub ? '<span class="o-sub">' + esc(p.sub) + '</span>' : '') + '</li>').join('');
+      }
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      if (active >= 0) { input.setAttribute('aria-activedescendant', list.id + '-' + active); const el = document.getElementById(list.id + '-' + active); if (el) el.scrollIntoView({ block: 'nearest' }); }
+      else input.removeAttribute('aria-activedescendant');
+    }
+    function open(q) { items = suggest(q); active = items.length && q ? 0 : -1; render(); }
+    function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+    function pick(p, silent) {
+      if (!p) return;
+      input.value = p.label; input.dataset.g = p.g; close();
+      if (!silent) onPick(p);
+    }
+    input.addEventListener('input', () => { input.dataset.g = ''; open(input.value); });
+    input.addEventListener('focus', () => { input.select(); open(input.dataset.g ? '' : input.value); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (list.hidden) open(input.dataset.g ? '' : input.value); else { active = Math.min(items.length - 1, active + 1); render(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, active - 1); render(); }
+      else if (e.key === 'Enter') { if (!list.hidden && items[active]) { e.preventDefault(); pick(items[active]); } }
+      else if (e.key === 'Escape') { close(); }
+    });
+    input.addEventListener('blur', () => setTimeout(() => {
+      if (!input.dataset.g && input.value.trim()) { const s = suggest(input.value)[0]; if (s) pick(s); }
+      else if (input.dataset.g && places.get(input.dataset.g)) input.value = places.get(input.dataset.g).label;
+      close();
+    }, 150));
+    list.addEventListener('mousedown', (e) => e.preventDefault());
+    list.addEventListener('click', (e) => { const li = e.target.closest('[data-g]'); if (li) pick(places.get(li.dataset.g)); });
+    return {
+      get: () => input.dataset.g || '',
+      set: (g) => { const p = places.get(g); if (p) pick(p, true); else { input.value = ''; input.dataset.g = ''; } },
+      refresh: () => { const g = input.dataset.g; if (g && places.get(g)) input.value = places.get(g).label; }
+    };
+  }
+
+  /* ---------- État ---------- */
+  const st = {
+    mode: 'trip', sort: 'dep', esort: 'dur', leg: 'out', open: 0, shown: 25, firstRun: true, autoDay: false,
+    lastTrip: null, lastExplore: null, calKey: '', calData: null, calToken: 0
+  };
+  const picker = {};
+
+  function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY) || 'null') || {}; } catch (e) { return {}; } }
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        mode: st.mode, from: picker.from.get(), to: picker.to.get(), changes: getChanges(),
+        xchange: $('#in-xchange').checked, transfer: +$('#in-transfer').value, wait: +$('#in-wait').value,
+        radius: +$('#in-radius').value, daytrip: $('#in-daytrip').checked
+      }));
+    } catch (e) { /* stockage indisponible */ }
+  }
+  const getChanges = () => { const r = $('input[name="changes"]:checked'); return r ? +r.value : 2; };
+
+  /* ---------- Chargement des données ---------- */
+  function setStatus(state, text) {
+    const el = $('#status'); el.dataset.state = state; $('#statusText').textContent = text;
+  }
+  function idb() {
+    return new Promise((res, rej) => {
+      try {
+        const rq = indexedDB.open('quai-libre', 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+        rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+      } catch (e) { rej(e); }
+    });
+  }
+  async function cacheGet(key) {
+    try { const db = await idb(); return await new Promise((res) => { const rq = db.transaction('kv').objectStore('kv').get(key); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => res(null); }); }
+    catch (e) { return null; }
+  }
+  async function cacheSet(key, val) {
+    try { const db = await idb(); await new Promise((res) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(val, key); tx.oncomplete = res; tx.onerror = res; }); }
+    catch (e) { /* cache facultatif */ }
+  }
+  async function fetchWithTimeout(url, ms) {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+    try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); return r; }
+    finally { clearTimeout(t); }
+  }
+  async function downloadExport() {
+    const r = await fetchWithTimeout(EXPORT_URL, 90000);
+    if (!r.body || !r.body.getReader) return await r.text();
+    const reader = r.body.getReader(); const chunks = []; let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); n += value.length;
+      setStatus('loading', 'Téléchargement des places MAX… ' + (n / 1048576).toFixed(1).replace('.', ',') + ' Mo');
+    }
+    const buf = new Uint8Array(n); let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; }
+    return new TextDecoder('utf-8').decode(buf);
+  }
+  const procDay = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'short', day: 'numeric', month: 'short' });
+  const procTime = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
+  const procFmt = { format: (d) => procDay.format(d) + ' à ' + procTime.format(d) };
+
+  async function loadData() {
+    setStatus('loading', 'Connexion à l’open data SNCF…');
+    const cached = await cacheGet('data');
+    let processed = null;
+    try {
+      const meta = await (await fetchWithTimeout(API, 12000)).json();
+      processed = meta && meta.metas && meta.metas.default ? meta.metas.default.data_processed : null;
+    } catch (e) { processed = null; }
+
+    if (processed) {
+      if (cached && cached.processed === processed) return useText(cached.text, { kind: 'live', processed, cached: true });
+      try {
+        const text = await downloadExport();
+        useText(text, { kind: 'live', processed });
+        cacheSet('data', { processed, text, savedAt: Date.now() });
+        return;
+      } catch (e) { /* on tente la copie locale */ }
+    }
+    if (cached && cached.text) return useText(cached.text, { kind: cached.processed === 'import' ? 'import' : 'cache', processed: cached.processed, savedAt: cached.savedAt, name: cached.name });
+    showImport();
+  }
+
+  function useText(text, info) {
+    let parsed;
+    try { parsed = E.parse(text); } catch (e) { showImport(e.message); return; }
+    net = E.attachGroups(parsed, ST);
+    rebuildPlaces();
+    picker.from.refresh(); picker.to.refresh();
+    const n = net.edges.length.toLocaleString('fr-FR');
+    const range = dateShort(net.days[0]) + ' → ' + dateShort(net.days[net.days.length - 1]);
+    const age = parisNow().dn - net.days[0];
+    if (info.kind === 'live') setStatus('ready', 'Données SNCF du ' + procFmt.format(new Date(info.processed)) + ' · ' + n + ' trajets avec places MAX');
+    else if (info.kind === 'cache') setStatus(age > 1 ? 'error' : 'ready', 'Copie enregistrée' + (info.processed ? ' du ' + procFmt.format(new Date(info.processed)) : '') + ' · ' + n + ' trajets avec places MAX');
+    else setStatus(age > 1 ? 'error' : 'ready', (age > 1 ? 'Fichier importé il y a ' + age + ' jours' : 'Fichier importé') + ' · ' + n + ' trajets · ' + range);
+    $('#reimport').hidden = info.kind === 'live';
+    st.source = info.kind;
+    setupDates();
+    $('#results').setAttribute('aria-busy', 'false');
+    run();
+  }
+
+  function showImport(errMsg, keepData) {
+    if (!keepData) setStatus('error', 'Données SNCF à importer');
+    $('#results').setAttribute('aria-busy', 'false');
+    $('#results').innerHTML =
+      '<div class="import" id="importBox">' +
+      '<h2>Charge les places MAX des 30 prochains jours</h2>' +
+      '<p>Cette page n’a pas pu interroger l’open data SNCF directement. C’est normal dans l’aperçu de Claude, qui bloque les sites extérieurs. Deux gestes suffisent :</p>' +
+      '<ol><li><a href="' + esc(EXPORT_URL) + '" target="_blank" rel="noopener">Télécharge le fichier des places MAX</a> (export CSV SNCF, environ 3,5 Mo, nommé tgvmax.csv).</li>' +
+      '<li>Dépose-le ci-dessous. Il reste enregistré dans ce navigateur jusqu’au prochain import.</li></ol>' +
+      '<div class="drop" id="drop"><span>Dépose tgvmax.csv ici</span><label class="btn filebtn">Choisir le fichier<input type="file" id="file" accept=".csv,.json,text/csv,application/json"></label></div>' +
+      (errMsg ? '<p class="err" role="alert">' + esc(errMsg) + '</p>' : '') +
+      '<p class="note">Ouvert comme fichier dans un navigateur classique (Chrome, Firefox, Safari), Quai Libre charge les données tout seul, chaque matin.</p>' +
+      (keepData && net ? '<div><button type="button" class="btn" id="cancelImport">Revenir aux résultats</button></div>' : '') +
+      '</div>';
+    $('#file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) importFile(f); });
+    if (keepData && net) { $('#cancelImport').addEventListener('click', run); return; }
+    renderCalendarEmpty('Les jours apparaîtront ici une fois les données chargées.');
+    renderMap(null);
+  }
+
+  async function importFile(file) {
+    setStatus('loading', 'Lecture de ' + file.name + '…');
+    try {
+      const text = await file.text();
+      E.parse(text); // validation
+      useText(text, { kind: 'import' });
+      cacheSet('data', { processed: 'import', text, savedAt: Date.now(), name: file.name });
+    } catch (e) { showImport(e.message || 'Fichier illisible.'); }
+  }
+  // Glisser-déposer n'importe où sur la page
+  let dragDepth = 0;
+  window.addEventListener('dragenter', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { dragDepth++; document.body.classList.add('dragging'); } });
+  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
+  window.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+  window.addEventListener('drop', (e) => {
+    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging');
+    importFile(e.dataTransfer.files[0]);
+  });
+
+  /* ---------- Formulaire ---------- */
+  function setupDates() {
+    const now = parisNow();
+    const first = net ? Math.max(net.days[0], now.dn) : now.dn;
+    const last = net ? net.days[net.days.length - 1] : now.dn + 30;
+    const d = $('#in-date'); const r = $('#in-ret');
+    d.min = r.min = E.isoOf(first); d.max = r.max = E.isoOf(last);
+    let cur = E.dayNum(d.value);
+    if (!isFinite(cur) || cur < first || cur > last) cur = now.min >= 17 * 60 && first === now.dn ? Math.min(first + 1, last) : first;
+    d.value = E.isoOf(cur);
+    const rv = E.dayNum(r.value);
+    if (isFinite(rv) && (rv < cur || rv > last)) r.value = '';
+  }
+  function fillAfter() {
+    const s = $('#in-after');
+    let h = '<option value="00:00">Indifférent</option>';
+    for (let i = 5; i <= 22; i++) h += '<option value="' + pad(i) + ':00">' + i + ' h</option>';
+    s.innerHTML = h;
+  }
+
+  function setMode(mode, focus) {
+    st.mode = mode;
+    for (const t of $$('.tab')) {
+      const on = t.dataset.mode === mode;
+      t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+      if (on && focus) t.focus();
+    }
+    $('#f-from').hidden = mode === 'to';
+    $('#f-to').hidden = mode === 'from';
+    $('#swap').hidden = mode !== 'trip';
+    $('#fod').classList.toggle('single', mode !== 'trip');
+    $('#o-changes').hidden = mode !== 'trip';
+    $('#o-xchange').hidden = mode === 'trip';
+    $('#o-ret').hidden = mode !== 'trip';
+    $('#o-daytrip').hidden = mode !== 'from';
+    $('#go').textContent = mode === 'trip' ? 'Chercher' : mode === 'from' ? 'Voir les destinations' : 'Voir les départs possibles';
+    // La carte prend la place principale en exploration
+    const mapCard = $('#mapCard');
+    if (mode === 'trip') $('#side').appendChild(mapCard);
+    else $('#side').insertBefore(mapCard, $('#calCard'));
+    $('.main').classList.toggle('explore', mode !== 'trip');
+    updateOptsSummary();
+  }
+  function updateOptsSummary() {
+    const parts = [];
+    if (st.mode === 'trip') { const c = getChanges(); parts.push(c === 0 ? 'direct uniquement' : plural(c, 'correspondance') + ' max'); }
+    else parts.push($('#in-xchange').checked ? 'avec 1 correspondance' : 'directs');
+    parts.push('corresp. ' + $('#in-transfer').selectedOptions[0].text);
+    const rad = +$('#in-radius').value; if (rad) parts.push('gares à ' + rad + ' km');
+    if (st.mode === 'trip' && $('#in-ret').value) parts.push('retour ' + dateShort(E.dayNum($('#in-ret').value)));
+    if (st.mode === 'from' && $('#in-daytrip').checked) parts.push('aller-retour du jour');
+    $('#optsSum').textContent = '· ' + parts.join(' · ');
+  }
+
+  function windowFor(dn) {
+    const after = E.hm($('#in-after').value) || 0;
+    const now = parisNow();
+    let tMin = dn * DAY + after;
+    if (tMin < now.abs + 5) tMin = now.abs + 5;
+    return { tMin, tMax: dn * DAY + DAY - 1 };
+  }
+  const opts = () => ({ transfer: +$('#in-transfer').value, maxWait: +$('#in-wait').value });
+
+  function run() {
+    if (!net) return;
+    savePrefs(); updateOptsSummary();
+    const dn = E.dayNum($('#in-date').value);
+    if (!isFinite(dn)) return;
+    if (st.mode === 'trip') runTrip(dn); else runExplore(dn);
+    st.firstRun = false;
+  }
+
+  /* ---------- Itinéraire ---------- */
+  function tripQuery(fromG, toG, dn) {
+    const radius = +$('#in-radius').value;
+    const fromGroups = expand(fromG, radius);
+    const toGroups = expand(toG, radius);
+    for (const g of toGroups) fromGroups.delete(g);
+    const w = windowFor(dn);
+    return Object.assign({ fromGroups, toGroups, tMin: w.tMin, tMax: w.tMax, maxLegs: getChanges() + 1 }, opts());
+  }
+
+  function runTrip(dn) {
+    const fromG = picker.from.get(); const toG = picker.to.get();
+    if (!fromG || !toG) return renderMessage('Choisis une gare de départ et une gare d’arrivée', 'Tape le nom d’une ville : Quai Libre propose les gares desservies par des trains MAX.');
+    if (fromG === toG) return renderMessage('Départ et arrivée identiques', 'Choisis deux villes différentes.');
+    let q = tripQuery(fromG, toG, dn);
+    let res = E.journeys(net, q);
+    st.autoDay = false;
+    if (st.firstRun && !res.list.length) {
+      // Premier affichage : on saute au prochain jour qui a des places
+      for (const d of net.days) {
+        if (d <= dn) continue;
+        const q2 = tripQuery(fromG, toG, d); const r2 = E.journeys(net, q2);
+        if (r2.list.length) { dn = d; q = q2; res = r2; $('#in-date').value = E.isoOf(d); st.autoDay = true; break; }
+      }
+    }
+    let back = null;
+    const rdn = E.dayNum($('#in-ret').value);
+    if (isFinite(rdn) && rdn >= dn) {
+      const w = windowFor(rdn);
+      back = E.journeys(net, Object.assign({}, q, { fromGroups: q.toGroups, toGroups: q.fromGroups, tMin: w.tMin, tMax: w.tMax }));
+      back.dn = rdn;
+    } else st.leg = 'out';
+    res.dn = dn;
+    st.lastTrip = { fromG, toG, q, res, back };
+    st.open = 0; st.shown = 25;
+    renderTrip();
+    calendarTrip(fromG, toG, dn);
+  }
+
+  function journeysSorted(list) {
+    const a = list.slice();
+    if (st.sort === 'dur') a.sort((x, y) => x.dur - y.dur || x.dep - y.dep);
+    else if (st.sort === 'chg') a.sort((x, y) => x.changes - y.changes || x.dep - y.dep);
+    else a.sort((x, y) => x.dep - y.dep || x.arr - y.arr);
+    return a;
+  }
+
+  function renderTrip() {
+    const T = st.lastTrip; if (!T) return;
+    const cur = st.leg === 'back' && T.back ? T.back : T.res;
+    const fromLbl = st.leg === 'back' ? placeLabel(T.toG) : placeLabel(T.fromG);
+    const toLbl = st.leg === 'back' ? placeLabel(T.fromG) : placeLabel(T.toG);
+    const list = journeysSorted(cur.list);
+    const fastest = cur.list.reduce((m, j) => (!m || j.dur < m.dur ? j : m), null);
+    const nDirect = cur.list.filter((j) => j.changes === 0).length;
+    const radius = +$('#in-radius').value;
+    let h = '<div class="res-head"><div><h2>' + esc(fromLbl) + ' → ' + esc(toLbl) + '</h2>' +
+      '<p class="meta">' + esc(dateLong(cur.dn)) + ' · ' + (list.length ? plural(list.length, 'trajet gratuit', 'trajets gratuits') + (nDirect ? ' dont ' + plural(nDirect, 'direct') : '') : 'aucun trajet gratuit') +
+      (radius ? ' · gares à moins de ' + radius + ' km incluses' : '') +
+      (st.autoDay && st.leg !== 'back' ? ' · premier jour avec des places MAX' : '') + '</p></div>';
+    if (list.length > 1) h += '<div class="pills" role="group" aria-label="Trier les trajets">' +
+      [['dep', 'Départ'], ['dur', 'Durée'], ['chg', 'Correspondances']].map(([k, l]) => '<button type="button" data-sort="' + k + '" aria-pressed="' + (st.sort === k) + '">' + l + '</button>').join('') + '</div>';
+    h += '</div>';
+    if (T.back) {
+      h += '<div class="pills" role="group" aria-label="Sens du trajet" style="justify-self:start">' +
+        '<button type="button" data-leg="out" aria-pressed="' + (st.leg !== 'back') + '">Aller · ' + esc(dateShort(T.res.dn)) + ' (' + T.res.list.length + ')</button>' +
+        '<button type="button" data-leg="back" aria-pressed="' + (st.leg === 'back') + '">Retour · ' + esc(dateShort(T.back.dn)) + ' (' + T.back.list.length + ')</button></div>';
+    }
+    if (!list.length) {
+      h += emptyTripHTML(cur);
+    } else {
+      h += '<ol class="tickets">' + list.slice(0, st.shown).map((j, i) => ticketHTML(j, i, cur.dn, j === fastest && list.length > 1)).join('') + '</ol>';
+      if (list.length > st.shown) h += '<button type="button" class="btn more" id="more">Afficher ' + plural(list.length - st.shown, 'autre trajet', 'autres trajets') + '</button>';
+      if (cur.partial) h += '<p class="note">Recherche écourtée : beaucoup de combinaisons possibles. Réduis le nombre de correspondances pour un résultat complet.</p>';
+    }
+    $('#results').innerHTML = h;
+    st.visible = list;
+    renderMap({ kind: 'trip', j: list[st.open] || list[0] || null, fromG: T.fromG, toG: T.toG, leg: st.leg });
+  }
+
+  function emptyTripHTML(cur) {
+    const c = getChanges();
+    let h = '<div class="empty"><h3>Pas de place MAX ce jour-là avec ces réglages</h3><p>Les places MAX partent vite. Essaie un autre jour (voir le calendrier), plus de correspondances, ou des gares voisines.</p><div class="suggest">';
+    if (st.calData) {
+      const days = [...st.calData.entries()].filter(([dn, v]) => v && v.count > 0 && dn !== cur.dn).sort((a, b) => Math.abs(a[0] - cur.dn) - Math.abs(b[0] - cur.dn)).slice(0, 3).sort((a, b) => a[0] - b[0]);
+      for (const [dn, v] of days) h += '<button type="button" class="btn" data-day="' + dn + '">' + esc(dateShort(dn)) + ' · ' + plural(v.count, 'trajet') + '</button>';
+    }
+    if (c < 3) h += '<button type="button" class="btn" data-setchanges="' + (c + 1) + '">Autoriser ' + plural(c + 1, 'correspondance') + '</button>';
+    if (+$('#in-radius').value < 60) h += '<button type="button" class="btn" data-setradius="' + (+$('#in-radius').value ? 60 : 30) + '">Inclure les gares à ' + (+$('#in-radius').value ? 60 : 30) + ' km</button>';
+    return h + '</div></div>';
+  }
+
+  const cityPrefix = /^(Paris|Lyon|Lille)[\s-]+/;
+  function legsSummary(j) {
+    const vias = []; const trains = [];
+    j.legs.forEach((l, i) => {
+      if (i > 0) {
+        const prev = j.legs[i - 1];
+        if (prev.train === l.train && prev.d === l.o) vias.push(stationLabel(l.o) + ' (même train)');
+        else if (prev.d === l.o) vias.push(stationLabel(l.o));
+        else { const city = (stationLabel(l.o).match(cityPrefix) || ['', ''])[1] || placeLabel(net.group.get(l.o)); vias.push(city + ' (' + stationLabel(prev.d).replace(cityPrefix, '') + ' → ' + stationLabel(l.o).replace(cityPrefix, '') + ')'); }
+      }
+      const t = modeShort(l.axe) + ' ' + l.train;
+      if (!trains.length || trains[trains.length - 1] !== t) trains.push(t);
+    });
+    return { vias, trains };
+  }
+
+  function ticketHTML(j, i, refDn, isFastest) {
+    const open = i === st.open;
+    const { vias, trains } = legsSummary(j);
+    let segs = '<i></i>';
+    j.legs.forEach((l, k) => { if (k > 0) { const same = j.legs[k - 1].train === l.train; segs += '<b class="' + (same ? 'same' : '') + '"></b><i></i>'; } });
+    const track = '<span class="t-dur">' + esc(dur(j.dur)) + '</span><span class="t-track">' + segs + '</span>';
+    const splits = j.legs.filter((l, k) => k > 0 && j.legs[k - 1].train === l.train && j.legs[k - 1].d === l.o).length;
+    const real = j.changes - splits;
+    let chips = real > 0 ? '<span class="chip via">' + plural(real, 'correspondance') + '</span>'
+      : '<span class="chip ok">' + (splits ? 'Direct · ' + (splits + 1) + ' billets' : 'Direct') + '</span>';
+    if (isFastest) chips += '<span class="chip star">Le plus rapide</span>';
+    if (vias.length) chips += '<span class="chip">via ' + esc(vias.join(', ')) + '</span>';
+    chips += trains.map((t) => '<span class="chip">' + esc(t) + '</span>').join('');
+    const first = j.legs[0]; const last = j.legs[j.legs.length - 1];
+    return '<li class="ticket' + (open ? ' is-open' : '') + '" data-i="' + i + '">' +
+      '<button type="button" class="t-sum" aria-expanded="' + open + '" aria-controls="td-' + i + '">' +
+      '<span class="t-dep t-time">' + timeHTML(j.dep, refDn) + '</span>' +
+      '<span class="t-mid" aria-hidden="true">' + track + '</span>' +
+      '<span class="t-arr t-time">' + timeHTML(j.arr, refDn) + '</span>' +
+      '<span class="t-st t-dst">' + esc(stationLabel(first.o)) + '</span>' +
+      '<span class="t-st t-ast">' + esc(stationLabel(last.d)) + '</span>' +
+      '<span class="t-chips">' + chips + '</span>' +
+      '<span class="sr">Durée ' + esc(dur(j.dur)) + '</span>' +
+      '</button>' +
+      '<div class="t-detail" id="td-' + i + '"' + (open ? '' : ' hidden') + '>' + (open ? detailHTML(j, refDn) : '') + '</div></li>';
+  }
+
+  function detailHTML(j, refDn) {
+    let h = '<ol class="tl">';
+    j.legs.forEach((l, k) => {
+      h += '<li><span class="tl-t">' + timeHTML(l.dep, refDn) + '</span><span class="tl-dot"></span><span class="tl-name">' + esc(stationLabel(l.o)) + '</span></li>';
+      h += '<li><span></span><span class="tl-bar"></span><span class="tl-info"><b>' + esc(modeOf(l.axe) + ' ' + l.train) + '</b> · ' + esc(dur(l.arr - l.dep)) + ' · place MAX ouverte</span></li>';
+      h += '<li><span class="tl-t">' + timeHTML(l.arr, refDn) + '</span><span class="tl-dot"></span><span class="tl-name">' + esc(stationLabel(l.d)) + '</span></li>';
+      const n = j.legs[k + 1];
+      if (n) {
+        const wait = n.dep - l.arr;
+        let note; let warn = false;
+        if (n.train === l.train && n.o === l.d) note = 'Reste à bord : nouvelle réservation MAX à partir d’ici, tu changes peut-être de place.';
+        else if (n.o === l.d) note = 'Correspondance sur place · ' + dur(wait);
+        else { const x = E.crossTime(net, l.d, n.o); note = 'Changement de gare vers ' + stationLabel(n.o) + ' · ' + dur(wait) + ' pour traverser (compte au moins ' + dur(x) + ')'; warn = true; }
+        h += '<li><span></span><span class="tl-dash"></span><span class="tl-note' + (warn ? ' warn' : '') + '">' + esc(note) + '</span></li>';
+      }
+    });
+    h += '</ol>';
+    const nRes = j.legs.length;
+    h += '<div class="t-foot">';
+    if (nRes > 1) h += '<p class="t-advice">' + nRes + ' réservations MAX à faire, une par train. Réserve-les dans l’ordre du trajet.</p>';
+    h += '<div class="t-actions"><a class="btn primary" href="' + BOOK_URL + '" target="_blank" rel="noopener">Réserver sur SNCF Connect <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>' +
+      '<button type="button" class="btn" data-copy>Copier le trajet</button></div>' +
+      '<textarea class="copybox" readonly hidden aria-label="Trajet à copier"></textarea></div>';
+    return h;
+  }
+
+  function journeyText(j, refDn) {
+    const lines = ['Quai Libre · ' + dateLong(refDn)];
+    for (const l of j.legs) lines.push(timeTxt(l.dep, refDn) + ' ' + stationLabel(l.o) + ' → ' + timeTxt(l.arr, refDn) + ' ' + stationLabel(l.d) + ' · ' + modeOf(l.axe) + ' ' + l.train);
+    lines.push(j.legs.length > 1 ? j.legs.length + ' réservations MAX (0 €)' : '1 réservation MAX (0 €)');
+    return lines.join('\n');
+  }
+
+  /* ---------- Exploration ---------- */
+  function runExplore(dn) {
+    const mode = st.mode;
+    const g = mode === 'from' ? picker.from.get() : picker.to.get();
+    if (!g) return renderMessage(mode === 'from' ? 'Choisis ta gare de départ' : 'Choisis ta destination', 'Tape le nom d’une ville pour voir toutes les possibilités gratuites.');
+    const radius = +$('#in-radius').value;
+    const groups = expand(g, radius);
+    const w = windowFor(dn);
+    const maxLegs = $('#in-xchange').checked ? 2 : 1;
+    let res;
+    if (mode === 'from' && $('#in-daytrip').checked) {
+      const now = parisNow();
+      const earliest = Math.max(E.hm($('#in-after').value) || 0, dn === now.dn ? now.min + 5 : 0);
+      res = { kind: 'day', list: E.dayTrips(net, Object.assign({ homeGroups: groups, dn, earliest, maxLegs, minStay: 120 }, opts())) };
+    } else {
+      const fn = mode === 'from' ? E.exploreFrom : E.exploreTo;
+      const q = Object.assign({ tMin: w.tMin, tMax: w.tMax, maxLegs }, opts());
+      if (mode === 'from') q.fromGroups = groups; else q.toGroups = groups;
+      res = { kind: mode, list: fn(net, q).map(summarize) };
+    }
+    st.lastExplore = { mode, g, groups, dn, res };
+    st.shown = 40;
+    renderExplore();
+    calendarExplore(g, groups, dn);
+  }
+
+  function summarize(x) {
+    const list = x.list;
+    const direct = list.filter((j) => j.changes === 0);
+    const fastest = list.reduce((m, j) => (!m || j.dur < m.dur ? j : m), null);
+    return { g: x.g, list, direct, fastest, n: list.length };
+  }
+
+  function renderExplore() {
+    const X = st.lastExplore; if (!X) return;
+    const isDay = X.res.kind === 'day';
+    let items = X.res.list.slice();
+    const base = placeLabel(X.g);
+    const nDirect = isDay ? 0 : items.filter((x) => x.direct.length).length;
+    let title, meta;
+    if (isDay) { title = 'Aller-retour dans la journée depuis ' + base; meta = plural(items.length, 'destination') + ' avec au moins 2 h sur place'; }
+    else if (X.mode === 'from') { title = 'Depuis ' + base; meta = plural(items.length, 'destination gratuite', 'destinations gratuites') + (nDirect ? ' · ' + nDirect + ' en direct' : ''); }
+    else { title = 'Vers ' + base; meta = plural(items.length, 'gare de départ possible', 'gares de départ possibles') + (nDirect ? ' · ' + nDirect + ' en direct' : ''); }
+
+    const sorts = isDay ? [['stay', 'Temps sur place'], ['az', 'A → Z']] : [['dur', 'Plus rapide'], ['n', 'Plus de trains'], ['az', 'A → Z']];
+    if (!sorts.some((s) => s[0] === st.esort)) st.esort = sorts[0][0];
+    if (st.esort === 'az') items.sort((a, b) => placeLabel(a.g).localeCompare(placeLabel(b.g), 'fr'));
+    else if (st.esort === 'n') items.sort((a, b) => b.direct.length - a.direct.length || b.n - a.n);
+    else if (st.esort === 'stay') items.sort((a, b) => b.stay - a.stay);
+    else items.sort((a, b) => (a.direct.length ? 0 : 1) - (b.direct.length ? 0 : 1) || a.fastest.dur - b.fastest.dur);
+
+    let h = '<div class="res-head"><div><h2>' + esc(title) + '</h2><p class="meta">' + esc(dateLong(X.dn)) + ' · ' + esc(meta) + '</p></div>';
+    if (items.length > 1) h += '<div class="pills" role="group" aria-label="Trier">' + sorts.map(([k, l]) => '<button type="button" data-esort="' + k + '" aria-pressed="' + (st.esort === k) + '">' + l + '</button>').join('') + '</div>';
+    h += '</div>';
+    if (!items.length) {
+      h += '<div class="empty"><h3>Aucune place MAX trouvée ce jour-là</h3><p>' + (isDay ? 'Pas d’aller-retour possible avec au moins 2 h sur place. Essaie un autre jour ou active « Inclure 1 correspondance ».' : 'Essaie un autre jour dans le calendrier, ou active « Inclure 1 correspondance » dans les réglages.') + '</p></div>';
+    } else {
+      h += '<ul class="dests">' + items.slice(0, st.shown).map((x) => destHTML(x, X)).join('') + '</ul>';
+      if (items.length > st.shown) h += '<button type="button" class="btn more" id="more">Afficher ' + plural(items.length - st.shown, 'autre ville', 'autres villes') + '</button>';
+    }
+    $('#results').innerHTML = h;
+    renderMap({ kind: 'explore', X, items });
+  }
+
+  function destHTML(x, X) {
+    const label = placeLabel(x.g);
+    let info, big, small, chip;
+    if (X.res.kind === 'day') {
+      info = 'Aller ' + hhmm(x.go.dep) + ' → ' + hhmm(x.go.arr) + (x.go.changes ? ' (1 corresp.)' : '') + ' · Retour ' + hhmm(x.back.dep) + ' → ' + timeTxt(x.back.arr, X.dn) + (x.back.changes ? ' (1 corresp.)' : '');
+      big = dur(x.stay); small = 'sur place'; chip = '';
+    } else {
+      if (x.direct.length) {
+        const deps = x.direct.map((j) => j.dep);
+        info = plural(x.direct.length, 'train direct', 'trains directs') + (x.direct.length > 1 ? ' · départs de ' + hhmm(Math.min(...deps)) + ' à ' + hhmm(Math.max(...deps)) : ' · départ à ' + hhmm(deps[0]));
+        const nVia = x.n - x.direct.length; if (nVia) info += ' · +' + nVia + ' avec corresp.';
+      } else {
+        const j = x.fastest; const via = stationLabel(j.legs[0].d);
+        info = plural(x.n, 'option') + ' avec 1 correspondance · via ' + via;
+      }
+      big = dur(x.fastest.dur); small = 'le plus rapide';
+      chip = x.direct.length ? '<span class="chip ok">Direct</span>' : '<span class="chip via">1 corresp.</span>';
+    }
+    return '<li><button type="button" class="dest" data-g="' + esc(x.g) + '"><span class="d-name">' + esc(label) + '</span><span class="d-info">' + esc(info) + '</span>' +
+      '<span class="d-right"><span class="d-big">' + esc(big) + '</span><span class="d-small">' + esc(small) + '</span>' + chip + '</span></button></li>';
+  }
+
+  function openTripTo(g) {
+    const X = st.lastExplore; if (!X) return;
+    if (X.mode === 'from') { picker.to.set(g); picker.from.set(X.g); }
+    else { picker.from.set(g); picker.to.set(X.g); }
+    if (X.res.kind === 'day') { $('#in-ret').value = $('#in-date').value; if (!getChanges()) $('#ch-1').checked = true; }
+    if ($('#in-xchange').checked && getChanges() < 1) $('#ch-1').checked = true;
+    setMode('trip');
+    st.leg = 'out';
+    run();
+    $('#results').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function renderMessage(title, text) {
+    $('#results').innerHTML = '<div class="empty"><h3>' + esc(title) + '</h3><p>' + esc(text) + '</p></div>';
+    renderMap(null);
+  }
+
+  /* ---------- Calendrier ---------- */
+  const DOW = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  function calGridHTML(data, selDn, label) {
+    const now = parisNow();
+    const first = Math.max(net.days[0], now.dn); const last = net.days[net.days.length - 1];
+    const dow = (dn) => (new Date(dn * 864e5).getUTCDay() + 6) % 7;
+    const start = first - dow(first); const end = last + (6 - dow(last));
+    let h = '<div class="cal-grid" role="group" aria-label="' + esc(label) + '">' + DOW.map((d) => '<span class="cal-dow" aria-hidden="true">' + d + '</span>').join('');
+    for (let dn = start; dn <= end; dn++) {
+      const dt = new Date(dn * 864e5); const day = dt.getUTCDate();
+      if (dn < first || dn > last) { h += '<span class="cal-day blank" aria-hidden="true"></span>'; continue; }
+      const v = data ? data.get(dn) : undefined;
+      let s = 'wait'; let c = ''; let aria = '';
+      if (v) {
+        s = v.count ? (v.direct ? 'direct' : 'via') : 'none';
+        c = v.count ? String(v.count) : '0';
+        aria = v.count ? plural(v.count, v.unit) + (v.direct ? ' dont ' + v.direct + ' en direct' : ' avec correspondance') : 'aucune place';
+      }
+      const showMonth = day === 1 || dn === first;
+      h += '<button type="button" class="cal-day' + (dn === now.dn ? ' today' : '') + '" data-day="' + dn + '" data-s="' + s + '" aria-pressed="' + (dn === selDn) + '" aria-label="' + esc(dFmtDow.format(dt) + ' ' + day + ' ' + dFmtMonth.format(dt) + (aria ? ' : ' + aria : '')) + '">' +
+        (showMonth ? '<span class="m">' + esc(dFmtMonth.format(dt).replace('.', '')) + '</span>' : '') + '<span class="n">' + day + '</span><span class="c">' + c + '</span></button>';
+    }
+    return h + '</div>';
+  }
+  function renderCalendarEmpty(msg) {
+    $('#calSub').textContent = '';
+    $('#cal').innerHTML = '<p class="note">' + esc(msg) + '</p>';
+    $('#calLegend').innerHTML = '';
+  }
+  function setLegend(directLbl, viaLbl) {
+    $('#calLegend').innerHTML = '<span><i style="background:var(--ok-bg);box-shadow:inset 0 0 0 2px var(--ok)"></i>' + esc(directLbl) + '</span>' +
+      '<span><i style="background:var(--via-bg);box-shadow:inset 0 0 0 2px var(--via)"></i>' + esc(viaLbl) + '</span>' +
+      '<span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>Rien</span>';
+  }
+
+  function computeCalendar(key, label, unit, perDay, selDn) {
+    const token = ++st.calToken;
+    if (st.calKey === key && st.calData) { drawCal(selDn, label); return; }
+    st.calKey = key; st.calData = new Map();
+    drawCal(selDn, label);
+    const now = parisNow();
+    const days = net.days.filter((dn) => dn >= now.dn);
+    let i = 0;
+    const step = () => {
+      if (token !== st.calToken) return;
+      const t0 = performance.now();
+      while (i < days.length && performance.now() - t0 < 24) {
+        const dn = days[i++];
+        const r = perDay(dn); r.unit = unit;
+        st.calData.set(dn, r);
+      }
+      drawCal(E.dayNum($('#in-date').value), label);
+      if (i < days.length) setTimeout(step, 0);
+    };
+    setTimeout(step, 30);
+  }
+  function drawCal(selDn, label) { $('#cal').innerHTML = calGridHTML(st.calData, selDn, label); }
+
+  function calendarTrip(fromG, toG, selDn) {
+    const o = opts(); const c = getChanges(); const radius = +$('#in-radius').value; const after = $('#in-after').value;
+    const key = ['trip', fromG, toG, c, o.transfer, o.maxWait, radius, after].join('|');
+    $('#calTitle').textContent = 'Places sur 30 jours';
+    $('#calSub').textContent = placeLabel(fromG) + ' → ' + placeLabel(toG);
+    setLegend('Train direct', 'Avec correspondance');
+    computeCalendar(key, 'Trajets gratuits par jour', 'trajet', (dn) => {
+      const q = tripQuery(fromG, toG, dn);
+      q.cap = 120000;
+      const r = E.journeys(net, q);
+      return { count: r.list.length, direct: r.list.filter((j) => j.changes === 0).length };
+    }, selDn);
+  }
+  function calendarExplore(g, groups, selDn) {
+    const o = opts(); const maxLegs = $('#in-xchange').checked ? 2 : 1; const mode = st.mode; const day = mode === 'from' && $('#in-daytrip').checked; const after = $('#in-after').value;
+    const key = ['exp', mode, g, maxLegs, o.transfer, o.maxWait, $('#in-radius').value, day, after].join('|');
+    $('#calTitle').textContent = day ? 'Allers-retours par jour' : mode === 'from' ? 'Destinations par jour' : 'Origines par jour';
+    $('#calSub').textContent = placeLabel(g);
+    setLegend(day ? 'Possible' : 'Au moins un direct', 'Avec correspondance');
+    computeCalendar(key, day ? 'Allers-retours possibles par jour' : 'Villes accessibles par jour', day ? 'destination' : mode === 'from' ? 'destination' : 'origine', (dn) => {
+      const w = windowFor(dn);
+      if (day) {
+        const now = parisNow();
+        const earliest = Math.max(E.hm(after) || 0, dn === now.dn ? now.min + 5 : 0);
+        const r = E.dayTrips(net, Object.assign({ homeGroups: groups, dn, earliest, maxLegs, minStay: 120 }, o));
+        return { count: r.length, direct: r.filter((x) => !x.go.changes && !x.back.changes).length };
+      }
+      const q = Object.assign({ tMin: w.tMin, tMax: w.tMax, maxLegs }, o);
+      if (mode === 'from') q.fromGroups = groups; else q.toGroups = groups;
+      const r = (mode === 'from' ? E.exploreFrom : E.exploreTo)(net, q);
+      return { count: r.length, direct: r.filter((x) => x.list.some((j) => j.changes === 0)).length };
+    }, selDn);
+  }
+
+  /* ---------- Carte ---------- */
+  const NS = 'http://www.w3.org/2000/svg';
+  const proj = (lat, lon) => [(lon - FR.LON0) * FR.C * FR.K, (FR.LAT1 - lat) * FR.K];
+  const placeXY = (g) => { const p = places.get(g); return p && p.lat != null ? proj(p.lat, p.lon) : null; };
+  const codeXY = (c) => { const xy = coordOf(c); return xy ? proj(xy[0], xy[1]) : null; };
+
+  function renderMap(view) {
+    const box = $('#map');
+    const w = Math.max(220, box.clientWidth || 320);
+    const s = FR.W / w; // unités SVG par pixel écran
+    const f = (n) => n.toFixed(1);
+    let base = '';
+    const seen = new Set();
+    for (const c in ST) { const xy = codeXY(c); if (!xy) continue; const k = Math.round(xy[0] / 4) + ',' + Math.round(xy[1] / 4); if (seen.has(k)) continue; seen.add(k); base += '<circle class="m-dot" cx="' + f(xy[0]) + '" cy="' + f(xy[1]) + '" r="' + f(1.3 * s) + '"/>'; }
+    let over = ''; let legend = ''; let sub = '';
+    const label = (xy, text, anchorRight) => '<text class="m-label" x="' + f(xy[0] + (anchorRight ? -9 : 9) * s) + '" y="' + f(xy[1] + 4 * s) + '" text-anchor="' + (anchorRight ? 'end' : 'start') + '" font-size="' + f(12 * s) + '">' + esc(text) + '</text>';
+    if (view && view.kind === 'trip' && view.j) {
+      const j = view.j; const pts = [];
+      j.legs.forEach((l, k) => {
+        const a = codeXY(l.o); const b = codeXY(l.d);
+        if (a && b) { const same = k > 0 && j.legs[k - 1].train === l.train; over += '<line class="m-route' + (same ? ' same' : '') + '" x1="' + f(a[0]) + '" y1="' + f(a[1]) + '" x2="' + f(b[0]) + '" y2="' + f(b[1]) + '"/>'; }
+        if (k === 0 && a) pts.push([a, 'start', l.o]);
+        if (b) pts.push([b, k === j.legs.length - 1 ? 'end' : 'xfer', l.d]);
+      });
+      const W2 = FR.W / 2;
+      for (const [xy, kind, code] of pts) {
+        over += '<circle class="' + (kind === 'xfer' ? 'm-xfer' : 'm-stop') + '" cx="' + f(xy[0]) + '" cy="' + f(xy[1]) + '" r="' + f((kind === 'xfer' ? 4.5 : 5.5) * s) + '"/>';
+      }
+      for (const [xy, kind, code] of pts) over += label(xy, stationLabel(code), xy[0] > W2 * 1.35);
+      sub = dateShort(Math.floor(j.dep / DAY)) + ' · ' + hhmm(j.dep) + ' → ' + hhmm(j.arr);
+      legend = '<span><i style="background:var(--surface);box-shadow:inset 0 0 0 3px var(--ink)"></i>Départ / arrivée</span><span><i style="background:var(--led);box-shadow:inset 0 0 0 2px var(--ink)"></i>Correspondance</span>';
+    } else if (view && view.kind === 'explore') {
+      const X = view.X; const o = placeXY(X.g);
+      const pts = [];
+      for (const x of view.items) {
+        const xy = placeXY(x.g); if (!xy) continue;
+        const direct = X.res.kind === 'day' ? !x.go.changes : x.direct.length > 0;
+        const n = X.res.kind === 'day' ? 2 : Math.max(1, x.direct.length || 1);
+        pts.push({ g: x.g, xy, direct, r: Math.min(8, 3 + Math.sqrt(n) * 1.1) });
+      }
+      if (o) for (const p of pts) if (p.direct) over += '<line class="m-ray" x1="' + f(o[0]) + '" y1="' + f(o[1]) + '" x2="' + f(p.xy[0]) + '" y2="' + f(p.xy[1]) + '"/>';
+      pts.sort((a, b) => (a.direct ? 1 : 0) - (b.direct ? 1 : 0));
+      for (const p of pts) over += '<g class="m-hit" data-g="' + esc(p.g) + '" tabindex="-1"><title>' + esc(placeLabel(p.g)) + '</title><circle class="' + (p.direct ? 'm-direct' : 'm-via') + '" cx="' + f(p.xy[0]) + '" cy="' + f(p.xy[1]) + '" r="' + f(p.r * s) + '"/></g>';
+      if (o) { over += '<circle class="m-origin" cx="' + f(o[0]) + '" cy="' + f(o[1]) + '" r="' + f(7 * s) + '"/>' + label(o, placeLabel(X.g).replace(/ \(.*\)$/, ''), o[0] > FR.W * 0.68); }
+      sub = plural(pts.length, X.mode === 'to' ? 'origine' : 'ville');
+      legend = '<span><i style="background:var(--led);box-shadow:inset 0 0 0 2px var(--ink)"></i>' + (X.mode === 'to' ? 'Destination' : 'Départ') + '</span><span><i style="background:var(--ok)"></i>Direct</span><span><i style="background:var(--surface);box-shadow:inset 0 0 0 2px var(--via)"></i>Avec correspondance</span>';
+    }
+    box.innerHTML = '<svg viewBox="0 0 ' + FR.W + ' ' + FR.H + '" role="img" aria-label="Carte des gares TGV MAX"><path class="m-land" d="' + FR.d + '"/><g>' + base + '</g><g>' + over + '</g></svg>';
+    $('#mapSub').textContent = sub;
+    $('#mapLegend').innerHTML = legend;
+  }
+
+  /* ---------- Événements ---------- */
+  function bind() {
+    picker.from = Combo($('#in-from'), $('#lb-from'), () => { if (net && (st.mode !== 'trip' || picker.to.get())) run(); });
+    picker.to = Combo($('#in-to'), $('#lb-to'), () => { if (net && (st.mode !== 'trip' || picker.from.get())) run(); });
+
+    $('#form').addEventListener('submit', (e) => { e.preventDefault(); run(); });
+    $('#swap').addEventListener('click', () => { const a = picker.from.get(); const b = picker.to.get(); picker.from.set(b); picker.to.set(a); run(); });
+    $('.tabs').addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (!t) return; setMode(t.dataset.mode); run(); });
+    $('.tabs').addEventListener('keydown', (e) => {
+      const tabs = $$('.tab'); const i = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+      let n = -1;
+      if (e.key === 'ArrowRight') n = (i + 1) % tabs.length; else if (e.key === 'ArrowLeft') n = (i + tabs.length - 1) % tabs.length;
+      if (n >= 0) { e.preventDefault(); setMode(tabs[n].dataset.mode, true); run(); }
+    });
+    for (const id of ['in-date', 'in-after', 'in-transfer', 'in-wait', 'in-radius', 'in-ret', 'in-xchange', 'in-daytrip']) $('#' + id).addEventListener('change', () => { if (id === 'in-ret' && $('#in-ret').value) st.leg = 'out'; run(); });
+    for (const r of $$('input[name="changes"]')) r.addEventListener('change', run);
+    $('#ret-clear').addEventListener('click', () => { $('#in-ret').value = ''; st.leg = 'out'; run(); });
+    $('#reimport').addEventListener('click', () => showImport(null, true));
+
+    $('#results').addEventListener('click', async (e) => {
+      const t = e.target;
+      const sort = t.closest('[data-sort]'); if (sort) { st.sort = sort.dataset.sort; st.open = 0; renderTrip(); return; }
+      const esort = t.closest('[data-esort]'); if (esort) { st.esort = esort.dataset.esort; renderExplore(); return; }
+      const leg = t.closest('[data-leg]'); if (leg) { st.leg = leg.dataset.leg; st.open = 0; renderTrip(); return; }
+      if (t.closest('#more')) { st.shown += st.mode === 'trip' ? 25 : 40; if (st.mode === 'trip') renderTrip(); else renderExplore(); return; }
+      const day = t.closest('[data-day]'); if (day) { $('#in-date').value = E.isoOf(+day.dataset.day); run(); return; }
+      const sc = t.closest('[data-setchanges]'); if (sc) { $('#ch-' + sc.dataset.setchanges).checked = true; run(); return; }
+      const sr = t.closest('[data-setradius]'); if (sr) { $('#in-radius').value = sr.dataset.setradius; run(); return; }
+      const dest = t.closest('.dest'); if (dest) { openTripTo(dest.dataset.g); return; }
+      const copy = t.closest('[data-copy]');
+      if (copy) {
+        const li = copy.closest('.ticket'); const j = st.visible[+li.dataset.i];
+        const cur = st.leg === 'back' && st.lastTrip.back ? st.lastTrip.back : st.lastTrip.res;
+        const text = journeyText(j, cur.dn);
+        try { await navigator.clipboard.writeText(text); copy.textContent = 'Copié'; setTimeout(() => { copy.textContent = 'Copier le trajet'; }, 1800); }
+        catch (err) { const box = li.querySelector('.copybox'); box.value = text; box.hidden = false; box.focus(); box.select(); copy.textContent = 'Sélectionné, copie avec Ctrl+C'; }
+        return;
+      }
+      const sum = t.closest('.t-sum');
+      if (sum) {
+        const i = +sum.closest('.ticket').dataset.i;
+        st.open = st.open === i ? -1 : i;
+        for (const li of $$('.ticket', $('#results'))) {
+          const k = +li.dataset.i; const on = k === st.open;
+          li.classList.toggle('is-open', on);
+          li.querySelector('.t-sum').setAttribute('aria-expanded', String(on));
+          const d = li.querySelector('.t-detail');
+          const cur = st.leg === 'back' && st.lastTrip.back ? st.lastTrip.back : st.lastTrip.res;
+          if (on && !d.innerHTML) d.innerHTML = detailHTML(st.visible[k], cur.dn);
+          d.hidden = !on;
+        }
+        const T = st.lastTrip;
+        renderMap({ kind: 'trip', j: st.visible[st.open >= 0 ? st.open : i], fromG: T.fromG, toG: T.toG });
+      }
+    });
+    // Survol liste ↔ carte
+    $('#results').addEventListener('mouseover', (e) => { const d = e.target.closest('.dest'); hl(d ? d.dataset.g : null); });
+    $('#results').addEventListener('focusin', (e) => { const d = e.target.closest('.dest'); hl(d ? d.dataset.g : null); });
+    $('#map').addEventListener('click', (e) => { const g = e.target.closest('.m-hit'); if (g) openTripTo(g.dataset.g); });
+    $('#map').addEventListener('mouseover', (e) => { const g = e.target.closest('.m-hit'); if (!g) return; for (const d of $$('.dest')) d.classList.toggle('hl', d.dataset.g === g.dataset.g); });
+    $('#cal').addEventListener('click', (e) => { const b = e.target.closest('.cal-day[data-day]'); if (!b) return; $('#in-date').value = E.isoOf(+b.dataset.day); run(); });
+    let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (st.mode === 'trip' && st.lastTrip) renderTrip(); else if (st.lastExplore) renderMap({ kind: 'explore', X: st.lastExplore, items: st.lastExplore.res.list }); else renderMap(null); }, 200); });
+  }
+  function hl(g) { for (const n of $$('.m-hit')) n.classList.toggle('hl', n.dataset.g === g); }
+
+  /* ---------- Démarrage ---------- */
+  function init() {
+    rebuildPlaces();
+    fillAfter();
+    bind();
+    const p = loadPrefs();
+    picker.from.set(p.from && places.get(p.from) ? p.from : 'PARIS (INTRAMUROS)');
+    picker.to.set(p.to && places.get(p.to) ? p.to : 'LYON (INTRAMUROS)');
+    const ch = p.changes != null ? p.changes : 2; const r = $('#ch-' + ch); if (r) r.checked = true; else $('#ch-2').checked = true;
+    $('#in-xchange').checked = !!p.xchange;
+    if (p.transfer) $('#in-transfer').value = String(p.transfer); else $('#in-transfer').value = '20';
+    if (p.wait) $('#in-wait').value = String(p.wait); else $('#in-wait').value = '240';
+    $('#in-radius').value = String(p.radius || 0);
+    $('#in-daytrip').checked = !!p.daytrip;
+    setupDates();
+    setMode(p.mode === 'from' || p.mode === 'to' ? p.mode : 'trip');
+    renderCalendarEmpty('Les jours avec des places apparaîtront ici.');
+    renderMap(null);
+    loadData();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
